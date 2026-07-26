@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DrawIt</string>
+    <string name="new_document">New Document</string>
+    <string name="open_document">Open Document</string>
+    <string name="save_document">Save</string>
+    <string name="export">Export</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+    <string name="zoom_in">Zoom In</string>
+    <string name="zoom_out">Zoom Out</string>
+    <string name="zoom_fit">Zoom to Fit</string>
+    <string name="tool_select">Select</string>
+    <string name="tool_pen">Pen</string>
+    <string name="tool_rect">Rectangle</string>
+    <string name="tool_ellipse">Ellipse</string>
+    <string name="tool_freehand">Freehand</string>
+    <string name="tool_text">Text</string>
+    <string name="tool_zoom">Zoom</string>
+    <string name="tool_pan">Pan</string>
+    <string name="layers">Layers</string>
+    <string name="properties">Properties</string>
+    <string name="fill_color">Fill Color</string>
+    <string name="stroke_color">Stroke Color</string>
+    <string name="stroke_width">Stroke Width</string>
+</resources>

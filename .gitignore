@@ -1,0 +1,22 @@
+# Android
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# App module
+/app/build/
+/app/release/
+
+# Keystore (never commit)
+*.jks
+*.keystore
+
+# OS
+Thumbs.db
