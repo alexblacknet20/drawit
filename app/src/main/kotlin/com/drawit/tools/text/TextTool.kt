@@ -92,6 +92,7 @@ class TextTool(
             editingShapeId = hitId
             caretIndex = shape.text.length
             selectionAnchor = null
+            state.select(setOf(hitId))
             onEditingChanged?.invoke(true)
             context?.invalidate()
             return true
@@ -152,7 +153,7 @@ class TextTool(
                 return true
             }
             KeyEvent.KEYCODE_ENTER -> {
-                replaceText(shape, caretIndex, selectionRange()?.second ?: caretIndex, "\n")
+                replaceSelection(shape, "\n")
                 return true
             }
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
@@ -186,7 +187,7 @@ class TextTool(
                 val unicode = event.unicodeChar
                 if (unicode != 0) {
                     val ch = unicode.toChar().toString()
-                    replaceText(shape, caretIndex, selectionRange()?.second ?: caretIndex, ch)
+                    replaceSelection(shape, ch)
                     return true
                 }
                 return false
@@ -198,7 +199,24 @@ class TextTool(
     fun onImeCommit(text: String) {
         val shapeId = editingShapeId ?: return
         val shape = state.document.findShape(shapeId) as? TextShape ?: return
-        replaceText(shape, caretIndex, selectionRange()?.second ?: caretIndex, text)
+        replaceSelection(shape, text)
+    }
+
+    /** Called by soft keyboards, which usually do not emit KEYCODE_DEL. */
+    fun onImeDelete(beforeLength: Int, afterLength: Int): Boolean {
+        val shapeId = editingShapeId ?: return false
+        val shape = state.document.findShape(shapeId) as? TextShape ?: return false
+        val selection = selectionRange()
+        if (selection != null) {
+            replaceText(shape, selection.first, selection.second, "")
+            return true
+        }
+
+        val from = (caretIndex - beforeLength.coerceAtLeast(0)).coerceAtLeast(0)
+        val to = (caretIndex + afterLength.coerceAtLeast(0)).coerceAtMost(shape.text.length)
+        if (from == to) return false
+        replaceText(shape, from, to, "")
+        return true
     }
 
     // ================= Editing internals =================
@@ -207,6 +225,15 @@ class TextTool(
         val anchor = selectionAnchor ?: return null
         if (anchor == caretIndex) return null
         return minOf(anchor, caretIndex) to maxOf(anchor, caretIndex)
+    }
+
+    private fun replaceSelection(shape: TextShape, insert: String) {
+        val selection = selectionRange()
+        if (selection != null) {
+            replaceText(shape, selection.first, selection.second, insert)
+        } else {
+            replaceText(shape, caretIndex, caretIndex, insert)
+        }
     }
 
     private fun createTextAt(position: Point, frameWidth: Float) {
@@ -228,8 +255,10 @@ class TextTool(
     }
 
     private fun replaceText(shape: TextShape, from: Int, to: Int, insert: String) {
-        val newText = shape.text.substring(0, from) + insert + shape.text.substring(to)
-        val newCaret = from + insert.length
+        val start = minOf(from, to).coerceIn(0, shape.text.length)
+        val end = maxOf(from, to).coerceIn(start, shape.text.length)
+        val newText = shape.text.substring(0, start) + insert + shape.text.substring(end)
+        val newCaret = start + insert.length
         val updated = textEngine.measure(shape.copy(text = newText))
 
         // Update silently but register as one coalescing undo per continuous typing
@@ -246,6 +275,7 @@ class TextTool(
         // Remove empty text objects
         if (shape != null && shape.text.isEmpty()) {
             state.applyEdit("Remove Empty Text") { it.removeShape(shapeId) }
+            state.select(state.selectedShapeIds - shapeId)
         }
         editingShapeId = null
         selectionAnchor = null
@@ -302,15 +332,36 @@ class TextTool(
         // Selection highlight
         val sel = selectionRange()
         if (sel != null) {
-            val (x1, top1, _) = textEngine.caretFor(shape, layout, sel.first)
-            val (x2, _, bottom2) = textEngine.caretFor(shape, layout, sel.second)
-            val p1 = context.documentToScreen(shape.transform.transform(Point(x1, top1)))
-            val p2 = context.documentToScreen(shape.transform.transform(Point(x2, bottom2)))
             val paint = android.graphics.Paint().apply {
                 color = android.graphics.Color.argb(60, 0, 120, 215)
                 style = android.graphics.Paint.Style.FILL
             }
-            c.drawRect(minOf(p1.x, p2.x), p1.y, maxOf(p1.x, p2.x), p2.y, paint)
+            layout.lines.forEach { line ->
+                val lineStart = line.startIndex
+                val lineEnd = line.startIndex + line.text.length
+                val highlightStart = maxOf(sel.first, lineStart)
+                val highlightEnd = minOf(sel.second, lineEnd)
+                if (highlightStart <= highlightEnd &&
+                    (highlightStart < highlightEnd ||
+                        (sel.second > lineEnd && highlightStart == lineEnd))) {
+                    val (x1, top, _) = textEngine.caretFor(shape, layout, highlightStart)
+                    val (x2, _, bottom) = textEngine.caretFor(shape, layout, highlightEnd)
+                    val p1 = context.documentToScreen(
+                        shape.transform.transform(Point(x1, top))
+                    )
+                    val p2 = context.documentToScreen(
+                        shape.transform.transform(Point(x2, bottom))
+                    )
+                    val right = if (highlightStart == highlightEnd) {
+                        context.documentToScreen(
+                            shape.transform.transform(Point(layout.bounds.right, bottom))
+                        ).x
+                    } else {
+                        p2.x
+                    }
+                    c.drawRect(minOf(p1.x, right), p1.y, maxOf(p1.x, right), p2.y, paint)
+                }
+            }
         }
 
         // Caret

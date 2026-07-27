@@ -72,7 +72,8 @@ object BooleanOps {
             fill = source.fill,
             stroke = source.stroke,
             opacity = source.opacity,
-            blendMode = source.blendMode
+            blendMode = source.blendMode,
+            effects = source.effects
         )
     }
 
@@ -164,7 +165,6 @@ object BooleanOps {
         try {
             this.set(a)
             this.op(b, op)
-            true
         } catch (e: Exception) {
             false
         }

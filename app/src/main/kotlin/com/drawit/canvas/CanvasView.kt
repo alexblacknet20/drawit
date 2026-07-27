@@ -8,7 +8,6 @@ import android.graphics.Paint
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -58,12 +57,13 @@ class CanvasView(context: Context) : View(context), ToolContext {
 
     // --- Gesture state ---
     private var primaryPointerId = -1
-    private var isMultiTouch = false
-    private var lastFocusX = 0f
-    private var lastFocusY = 0f
-    private var lastSpan = 0f
-    private var touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-    private var longPressRunnable: Runnable? = null
+    /** A second touch acts as Shift while the primary pointer keeps editing. */
+    private var touchShiftPointerId = -1
+    private var isViewportGesture = false
+    private var lastGestureFocus = Point.ZERO
+    private var lastGestureSpan = 0f
+    private var keyboardRequested = false
+    private var softwareEffectsEnabled = false
 
     // --- Selection overlay paint ---
     private val selectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -84,7 +84,8 @@ class CanvasView(context: Context) : View(context), ToolContext {
     init {
         isFocusable = true
         isFocusableInTouchMode = true
-        // Hardware acceleration is essential
+        // Hardware is the default; Edge Blur switches this view to software
+        // because BlurMaskFilter is not reliable on older hardware canvases.
         setLayerType(LAYER_TYPE_HARDWARE, null)
     }
 
@@ -100,6 +101,18 @@ class CanvasView(context: Context) : View(context), ToolContext {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val state = editorState ?: return
+        val needsSoftwareEffects = state.document.activePage.layers
+            .asSequence()
+            .filter { it.visible }
+            .flatMap { it.shapes.asSequence() }
+            .any(::hasEdgeBlur)
+        if (needsSoftwareEffects != softwareEffectsEnabled) {
+            softwareEffectsEnabled = needsSoftwareEffects
+            setLayerType(
+                if (needsSoftwareEffects) LAYER_TYPE_SOFTWARE else LAYER_TYPE_HARDWARE,
+                null
+            )
+        }
 
         // Desk background
         canvas.drawColor(AndroidColor.rgb(60, 63, 65))
@@ -107,8 +120,12 @@ class CanvasView(context: Context) : View(context), ToolContext {
         renderer.setTarget(canvas)
         renderer.render(state.document, state.viewMatrix)
 
-        // Selection overlay
-        drawSelectionOverlay(canvas, state)
+        // SelectTool draws the interactive transform box itself. Other tools
+        // keep a lightweight outline for the current selection.
+        if (activeTool !is com.drawit.tools.select.SelectTool &&
+            activeTool !is com.drawit.tools.node.NodeEditTool) {
+            drawSelectionOverlay(canvas, state)
+        }
 
         // Tool overlay
         activeTool?.drawOverlay(canvas, this)
@@ -126,15 +143,16 @@ class CanvasView(context: Context) : View(context), ToolContext {
             canvas.drawPath(path, selectionPaint)
 
             // Corner handles
+            val handleSize = state.controlHandleSizePx.coerceIn(3f, 14f)
             for (corner in corners) {
                 canvas.drawRect(
-                    corner.x - 4f, corner.y - 4f,
-                    corner.x + 4f, corner.y + 4f,
+                    corner.x - handleSize, corner.y - handleSize,
+                    corner.x + handleSize, corner.y + handleSize,
                     handlePaint
                 )
                 canvas.drawRect(
-                    corner.x - 4f, corner.y - 4f,
-                    corner.x + 4f, corner.y + 4f,
+                    corner.x - handleSize, corner.y - handleSize,
+                    corner.x + handleSize, corner.y + handleSize,
                     handleStrokePaint
                 )
             }
@@ -152,8 +170,10 @@ class CanvasView(context: Context) : View(context), ToolContext {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                    requestFocus()
                     primaryPointerId = event.getPointerId(0)
-                    isMultiTouch = false
+                    touchShiftPointerId = -1
+                    isViewportGesture = false
                     val p = screenPoint(event, 0)
                     dispatchToTool(
                         ToolEvent.Down(
@@ -167,62 +187,49 @@ class CanvasView(context: Context) : View(context), ToolContext {
                         )
                     )
                 } else {
-                    // Second finger: switch to viewport gesture mode
-                    isMultiTouch = true
-                    dispatchToTool(ToolEvent.Cancel(event.eventTime))
-                    val focus = gestureFocus(event)
-                    lastFocusX = focus.x
-                    lastFocusY = focus.y
-                    lastSpan = gestureSpan(event)
+                    if (activeTool?.isConstrainableGestureActive == true) {
+                        // While resizing/rotating/drawing, the second touch can
+                        // be placed anywhere and behaves like Shift.
+                        touchShiftPointerId = event.getPointerId(event.actionIndex)
+                        dispatchPrimaryMove(event, state)
+                    } else {
+                        // Otherwise two touches control the viewport.
+                        dispatchToTool(ToolEvent.Cancel(event.eventTime))
+                        isViewportGesture = true
+                        primaryPointerId = -1
+                        lastGestureFocus = gestureFocus(event)
+                        lastGestureSpan = gestureSpan(event)
+                    }
                 }
                 return true
             }
 
             MotionEvent.ACTION_MOVE -> {
-                if (isMultiTouch && event.pointerCount >= 2) {
-                    // Two-finger pan + pinch zoom (viewport-level, not tool-level)
+                if (isViewportGesture && event.pointerCount >= 2) {
                     val focus = gestureFocus(event)
                     val span = gestureSpan(event)
-
-                    val dx = focus.x - lastFocusX
-                    val dy = focus.y - lastFocusY
-                    state.pan(dx, dy)
-
-                    if (lastSpan > 0f) {
-                        val factor = span / lastSpan
-                        state.zoomAt(Point(focus.x, focus.y), factor)
+                    state.pan(
+                        focus.x - lastGestureFocus.x,
+                        focus.y - lastGestureFocus.y
+                    )
+                    if (lastGestureSpan > 0f && span > 0f) {
+                        state.zoomAt(focus, span / lastGestureSpan)
                     }
-
-                    lastFocusX = focus.x
-                    lastFocusY = focus.y
-                    lastSpan = span
+                    lastGestureFocus = focus
+                    lastGestureSpan = span
                     invalidate()
                 } else {
-                    val idx = event.findPointerIndex(primaryPointerId)
-                    if (idx >= 0) {
-                        val p = screenPoint(event, idx)
-                        dispatchToTool(
-                            ToolEvent.Move(
-                                position = state.screenToDocument(p),
-                                pointerType = pointerTypeOf(event, idx),
-                                buttonsDown = setOf(Button.PRIMARY),
-                                modifiers = modifiersOf(event),
-                                pressure = pressureOf(event, idx),
-                                tilt = tiltOf(event, idx),
-                                timestamp = event.eventTime
-                            )
-                        )
-                    }
+                    dispatchPrimaryMove(event, state)
                 }
                 return true
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val upPointerId = event.getPointerId(event.actionIndex)
-                if (isMultiTouch) {
+                if (isViewportGesture) {
                     if (event.pointerCount <= 2) {
-                        isMultiTouch = false
-                        lastSpan = 0f
+                        isViewportGesture = false
+                        lastGestureSpan = 0f
                     }
                 } else if (upPointerId == primaryPointerId) {
                     val idx = event.actionIndex
@@ -238,14 +245,19 @@ class CanvasView(context: Context) : View(context), ToolContext {
                         )
                     )
                     primaryPointerId = -1
+                } else if (upPointerId == touchShiftPointerId) {
+                    touchShiftPointerId = -1
+                    dispatchPrimaryMove(event, state)
                 }
                 return true
             }
 
             MotionEvent.ACTION_CANCEL -> {
                 dispatchToTool(ToolEvent.Cancel(event.eventTime))
-                isMultiTouch = false
                 primaryPointerId = -1
+                touchShiftPointerId = -1
+                isViewportGesture = false
+                lastGestureSpan = 0f
                 return true
             }
         }
@@ -315,6 +327,12 @@ class CanvasView(context: Context) : View(context), ToolContext {
             alt = event.isAltPressed,
             meta = event.isMetaPressed
         )
+        val toolEvent = ToolEvent.Key(
+            keyCode = keyCode,
+            modifiers = modifiers,
+            unicodeChar = event.getUnicodeChar(event.metaState),
+            timestamp = event.eventTime
+        )
 
         // Global shortcuts
         when {
@@ -325,8 +343,18 @@ class CanvasView(context: Context) : View(context), ToolContext {
                     (keyCode == KeyEvent.KEYCODE_Z && modifiers.shift)) -> {
                 state.redo(); invalidate(); return true
             }
+        }
+
+        // While editing text, deletion, arrows, Enter and printable keys belong
+        // to the text tool rather than to object deletion/nudging.
+        val textTool = activeTool as? com.drawit.tools.text.TextTool
+        if (textTool?.isEditing == true && dispatchToTool(toolEvent)) return true
+
+        when {
             keyCode == KeyEvent.KEYCODE_DEL || keyCode == KeyEvent.KEYCODE_FORWARD_DEL -> {
-                state.removeSelected(); invalidate(); return true
+                state.removeSelected()
+                invalidate()
+                return true
             }
             keyCode in KeyEvent.KEYCODE_DPAD_LEFT..KeyEvent.KEYCODE_DPAD_DOWN -> {
                 // Arrow-key nudge
@@ -348,14 +376,7 @@ class CanvasView(context: Context) : View(context), ToolContext {
         }
 
         // Delegate remaining keys to the active tool
-        return dispatchToTool(
-            ToolEvent.Key(
-                keyCode = keyCode,
-                modifiers = modifiers,
-                unicodeChar = event.getUnicodeChar(event.metaState),
-                timestamp = event.eventTime
-            )
-        ) || super.onKeyDown(keyCode, event)
+        return dispatchToTool(toolEvent) || super.onKeyDown(keyCode, event)
     }
 
     private fun nudgeSelection(delta: Point) {
@@ -393,6 +414,28 @@ class CanvasView(context: Context) : View(context), ToolContext {
     private fun screenPoint(event: MotionEvent, index: Int): Point =
         Point(event.getX(index), event.getY(index))
 
+    private fun dispatchPrimaryMove(event: MotionEvent, state: EditorState) {
+        val index = event.findPointerIndex(primaryPointerId)
+        if (index < 0 || index == event.actionIndex &&
+            event.actionMasked == MotionEvent.ACTION_POINTER_UP) return
+        val point = screenPoint(event, index)
+        dispatchToTool(
+            ToolEvent.Move(
+                position = state.screenToDocument(point),
+                pointerType = pointerTypeOf(event, index),
+                buttonsDown = setOf(Button.PRIMARY),
+                modifiers = modifiersOf(event),
+                pressure = pressureOf(event, index),
+                tilt = tiltOf(event, index),
+                timestamp = event.eventTime
+            )
+        )
+    }
+
+    private fun hasEdgeBlur(shape: Shape): Boolean =
+        shape.effects.edgeBlurRadius > 0.001f ||
+            (shape is Shape.GroupShape && shape.children.any(::hasEdgeBlur))
+
     private fun pointerTypeOf(event: MotionEvent, index: Int): PointerType =
         when (event.getToolType(index)) {
             MotionEvent.TOOL_TYPE_FINGER -> PointerType.TOUCH
@@ -412,7 +455,7 @@ class CanvasView(context: Context) : View(context), ToolContext {
     private fun modifiersOf(event: MotionEvent): Modifiers {
         val meta = event.metaState
         return Modifiers(
-            shift = meta and KeyEvent.META_SHIFT_ON != 0,
+            shift = meta and KeyEvent.META_SHIFT_ON != 0 || touchShiftPointerId >= 0,
             ctrl = meta and KeyEvent.META_CTRL_ON != 0,
             alt = meta and KeyEvent.META_ALT_ON != 0,
             meta = meta and KeyEvent.META_META_ON != 0
@@ -430,9 +473,9 @@ class CanvasView(context: Context) : View(context), ToolContext {
     private fun gestureFocus(event: MotionEvent): Point {
         var x = 0f
         var y = 0f
-        for (i in 0 until event.pointerCount) {
-            x += event.getX(i)
-            y += event.getY(i)
+        repeat(event.pointerCount) { index ->
+            x += event.getX(index)
+            y += event.getY(index)
         }
         return Point(x / event.pointerCount, y / event.pointerCount)
     }
@@ -443,7 +486,6 @@ class CanvasView(context: Context) : View(context), ToolContext {
         val dy = event.getY(0) - event.getY(1)
         return kotlin.math.sqrt(dx * dx + dy * dy)
     }
-
 
     // --- IME support (for TextTool) ---
 
@@ -461,19 +503,26 @@ class CanvasView(context: Context) : View(context), ToolContext {
                 return true
             }
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
-                // Handled by key event in TextTool
-                return false
+                return textTool.onImeDelete(beforeLength, afterLength) ||
+                    super.deleteSurroundingText(beforeLength, afterLength)
             }
         }
     }
 
     fun showKeyboard() {
         if (!onCheckIsTextEditor()) return
-        val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+        if (keyboardRequested) return
+        keyboardRequested = true
+        post {
+            requestFocus()
+            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.restartInput(this)
+            imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+        }
     }
 
     fun hideKeyboard() {
+        keyboardRequested = false
         val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.hideSoftInputFromWindow(windowToken, 0)
     }

@@ -55,7 +55,7 @@ object SvgImporter {
                                 shapes.add(Shape.PathShape(
                                     name = "Path",
                                     pathData = data,
-                                    transform = groupStack.last(),
+                                    transform = groupStack.last() * parseTransform(parser.attr("transform")),
                                     fill = fillOf(parser),
                                     stroke = strokeOf(parser),
                                     opacity = opacityOf(parser)
@@ -63,45 +63,45 @@ object SvgImporter {
                             }
                         }
                         "rect" -> {
-                            val x = parser.attr("x")?.toFloatOrNull() ?: 0f
-                            val y = parser.attr("y")?.toFloatOrNull() ?: 0f
-                            val w = parser.attr("width")?.toFloatOrNull() ?: 0f
-                            val h = parser.attr("height")?.toFloatOrNull() ?: 0f
+                            val x = parser.lengthAttr("x")
+                            val y = parser.lengthAttr("y")
+                            val w = parser.lengthAttr("width")
+                            val h = parser.lengthAttr("height")
                             if (w > 0 && h > 0) {
                                 shapes.add(Shape.RectShape(
                                     name = "Rect",
                                     rect = Rect(x, y, x + w, y + h),
-                                    cornerRadius = parser.attr("rx")?.toFloatOrNull() ?: 0f,
-                                    transform = groupStack.last(),
+                                    cornerRadius = parser.lengthAttr("rx"),
+                                    transform = groupStack.last() * parseTransform(parser.attr("transform")),
                                     fill = fillOf(parser), stroke = strokeOf(parser),
                                     opacity = opacityOf(parser)
                                 ))
                             }
                         }
                         "circle", "ellipse" -> {
-                            val cx = parser.attr("cx")?.toFloatOrNull() ?: 0f
-                            val cy = parser.attr("cy")?.toFloatOrNull() ?: 0f
-                            val rx = parser.attr("rx")?.toFloatOrNull()
-                                ?: parser.attr("r")?.toFloatOrNull() ?: 0f
-                            val ry = parser.attr("ry")?.toFloatOrNull()
-                                ?: parser.attr("r")?.toFloatOrNull() ?: 0f
+                            val cx = parser.lengthAttr("cx")
+                            val cy = parser.lengthAttr("cy")
+                            val rx = parser.attr("rx")?.let { parseLength(it) }
+                                ?: parser.lengthAttr("r")
+                            val ry = parser.attr("ry")?.let { parseLength(it) }
+                                ?: parser.lengthAttr("r")
                             if (rx > 0 && ry > 0) {
                                 shapes.add(Shape.EllipseShape(
                                     name = if (parser.name == "circle") "Circle" else "Ellipse",
                                     rect = Rect(cx - rx, cy - ry, cx + rx, cy + ry),
-                                    transform = groupStack.last(),
+                                    transform = groupStack.last() * parseTransform(parser.attr("transform")),
                                     fill = fillOf(parser), stroke = strokeOf(parser),
                                     opacity = opacityOf(parser)
                                 ))
                             }
                         }
                         "line" -> {
-                            val p1 = Point(parser.attr("x1").f, parser.attr("y1").f)
-                            val p2 = Point(parser.attr("x2").f, parser.attr("y2").f)
+                            val p1 = Point(parser.lengthAttr("x1"), parser.lengthAttr("y1"))
+                            val p2 = Point(parser.lengthAttr("x2"), parser.lengthAttr("y2"))
                             shapes.add(Shape.PathShape(
                                 name = "Line",
                                 pathData = PathData.EMPTY.moveTo(p1).lineTo(p2),
-                                transform = groupStack.last(),
+                                transform = groupStack.last() * parseTransform(parser.attr("transform")),
                                 fill = Fill.None, stroke = strokeOf(parser) ?: Stroke(),
                                 opacity = opacityOf(parser)
                             ))
@@ -115,7 +115,7 @@ object SvgImporter {
                                 shapes.add(Shape.PathShape(
                                     name = if (parser.name == "polygon") "Polygon" else "Polyline",
                                     pathData = data,
-                                    transform = groupStack.last(),
+                                    transform = groupStack.last() * parseTransform(parser.attr("transform")),
                                     fill = fillOf(parser), stroke = strokeOf(parser),
                                     opacity = opacityOf(parser)
                                 ))
@@ -133,14 +133,23 @@ object SvgImporter {
         }
 
         // Convert SVG px space → mm document space
-        val pxToMm = Matrix.scale(1f / PX_PER_MM)
-        val mmShapes = shapes.map { it.withTransform(pxToMm * it.transform) }
+        val vb = viewBox
+        val viewportWidthPx = rootWidth ?: vb?.width
+        val viewportHeightPx = rootHeight ?: vb?.height
+        val viewBoxToViewport = if (vb != null) {
+            val sx = (viewportWidthPx ?: vb.width) / vb.width
+            val sy = (viewportHeightPx ?: vb.height) / vb.height
+            Matrix.scale(sx, sy) * Matrix.translate(-vb.left, -vb.top)
+        } else {
+            Matrix.IDENTITY
+        }
+        val coordinateToMm = Matrix.scale(1f / PX_PER_MM) * viewBoxToViewport
+        val mmShapes = shapes.map { it.withTransform(coordinateToMm * it.transform) }
 
         // Page size from viewBox or width/height (in px → mm)
         val (pw, ph) = when {
-            viewBox != null -> viewBox.width / PX_PER_MM to viewBox.height / PX_PER_MM
-            rootWidth != null && rootHeight != null ->
-                rootWidth / PX_PER_MM to rootHeight / PX_PER_MM
+            viewportWidthPx != null && viewportHeightPx != null ->
+                viewportWidthPx / PX_PER_MM to viewportHeightPx / PX_PER_MM
             else -> {
                 val bounds = Rect.unionAll(mmShapes.map { it.bounds() })
                 (if (bounds.width > 0) bounds.width else 210f) to
@@ -164,7 +173,8 @@ object SvgImporter {
     private fun XmlPullParser.attr(name: String): String? =
         getAttributeValue(null, name)
 
-    private val String?.f: Float get() = this?.toFloatOrNull() ?: 0f
+    private fun XmlPullParser.lengthAttr(name: String, default: Float = 0f): Float =
+        attr(name)?.let { parseLength(it) } ?: default
 
     private fun fillOf(p: XmlPullParser): Fill {
         val style = p.attr("style")
@@ -186,7 +196,7 @@ object SvgImporter {
             ?.toFloatOrNull() ?: 1f
         return Stroke(
             color = color.withAlpha((color.a * opacity).toInt().coerceIn(0, 255)),
-            width = width / PX_PER_MM
+            width = width
         )
     }
 

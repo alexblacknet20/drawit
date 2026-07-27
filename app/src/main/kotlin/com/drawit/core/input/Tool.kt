@@ -42,4 +42,11 @@ interface Tool {
 
     /** Cursor to show for mouse hover (Android PointerIcon type). */
     val cursorType: Int get() = 1000 // TYPE_DEFAULT
+
+    /**
+     * True while a primary-pointer gesture can use Shift as a constraint.
+     * CanvasView uses this to distinguish touch-Shift from a two-finger
+     * viewport gesture.
+     */
+    val isConstrainableGestureActive: Boolean get() = false
 }

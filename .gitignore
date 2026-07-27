@@ -1,6 +1,7 @@
 # Android
 *.iml
 .gradle/
+/.tooling/
 /local.properties
 /.idea/
 .DS_Store

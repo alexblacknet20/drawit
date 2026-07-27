@@ -1,148 +1,150 @@
 package com.drawit.text
 
 import android.graphics.Paint
-import android.graphics.Typeface
 import com.drawit.core.document.TextShape
 import com.drawit.core.geometry.Rect
+import kotlin.math.abs
 
 /**
- * Measures and lays out text for TextShape — shared by renderer (drawing)
- * and TextTool (caret/selection math). All units in document mm.
+ * Shared text measurement and layout. All coordinates are document millimetres:
+ * the renderer applies the document-to-screen transform to the Canvas.
  */
 class TextEngine(private val fontManager: FontManager) {
 
-    companion object {
-        const val MM_PER_PX = 25.4f / 96f
-    }
-
     data class Line(
-        val text: String,          // substring of the shape text for this line
-        val startIndex: Int,       // index into full text where this line starts
-        val width: Float,          // mm
-        val baselineY: Float       // mm, from text block top
+        val text: String,
+        val startIndex: Int,
+        val width: Float,
+        val baselineY: Float
     )
 
     data class Layout(
         val lines: List<Line>,
-        val bounds: Rect,          // mm, local coords (top-left at 0,0)
-        val lineHeight: Float,     // mm
+        val bounds: Rect,
+        val lineHeight: Float,
         val paint: Paint
     )
 
-    fun paintFor(shape: TextShape): Paint {
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG)
-        paint.typeface = fontManager.typefaceFor(shape.fontFamily)
-        // textSize is in mm; Paint works in px — use a fixed reference and scale
-        paint.textSize = shape.textSize / MM_PER_PX
-        return paint
-    }
+    fun paintFor(shape: TextShape): Paint =
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
+            typeface = fontManager.typefaceFor(
+                shape.fontFamily,
+                shape.fontWeight.value,
+                shape.italic
+            )
+            textSize = shape.textSize
+        }
 
-    /** Lay out the shape's text: wraps if paragraph, splits on \n always. */
     fun layout(shape: TextShape): Layout {
         val paint = paintFor(shape)
-        val lineHeightPx = paint.fontSpacing
-        val lineHeightMm = lineHeightPx * MM_PER_PX * shape.lineSpacing / 1.0f
-
+        val lineHeight = paint.fontSpacing * shape.lineSpacing
         val lines = mutableListOf<Line>()
-        var baselineY = -paint.ascent() * MM_PER_PX // first baseline from top
-
+        var baseline = -paint.ascent()
+        var paragraphStart = 0
         val paragraphs = shape.text.split("\n")
-        var index = 0
-        for (para in paragraphs) {
+
+        paragraphs.forEachIndexed { paragraphIndex, paragraph ->
             if (shape.kind == TextShape.Kind.PARAGRAPH && shape.frameWidth > 0f) {
-                // Greedy word wrap
-                var remaining = para
-                if (remaining.isEmpty()) {
-                    lines.add(Line("", index, 0f, baselineY))
-                    baselineY += lineHeightMm
+                if (paragraph.isEmpty()) {
+                    lines += Line("", paragraphStart, 0f, baseline)
+                    baseline += lineHeight
                 }
-                while (remaining.isNotEmpty()) {
-                    val maxPx = shape.frameWidth / MM_PER_PX
-                    val count = paint.breakText(remaining, true, maxPx, null)
-                    if (count <= 0) {
-                        // Single word longer than frame: force-break by chars
-                        var i = 1
-                        while (i < remaining.length &&
-                            paint.measureText(remaining.substring(0, i + 1)) <= maxPx) i++
-                        val part = remaining.substring(0, i)
-                        lines.add(Line(part, index, paint.measureText(part) * MM_PER_PX, baselineY))
-                        index += part.length
-                        remaining = remaining.substring(i)
-                    } else {
-                        // Displayed part trims trailing spaces; consumed skips them
-                        var end = count
-                        while (end > 0 && remaining[end - 1] == ' ') end--
-                        if (end == 0) end = count
-                        val part = remaining.substring(0, end)
-                        lines.add(Line(part, index, paint.measureText(part) * MM_PER_PX, baselineY))
-                        var consumed = count
-                        while (consumed < remaining.length && remaining[consumed] == ' ') consumed++
-                        index += consumed
-                        remaining = remaining.substring(consumed)
+
+                var offset = 0
+                while (offset < paragraph.length) {
+                    val remaining = paragraph.substring(offset)
+                    var consumed = paint.breakText(
+                        remaining,
+                        true,
+                        shape.frameWidth,
+                        null
+                    ).coerceAtLeast(1)
+
+                    // Prefer wrapping at whitespace. Long words still make
+                    // progress because breakText supplies a character boundary.
+                    if (consumed < remaining.length) {
+                        val candidate = remaining.substring(0, consumed)
+                        val boundary = candidate.indexOfLast { it.isWhitespace() }
+                        if (boundary > 0) consumed = boundary + 1
                     }
-                    baselineY += lineHeightMm
+
+                    val displayed = remaining.substring(0, consumed).trimEnd()
+                    lines += Line(
+                        text = displayed,
+                        startIndex = paragraphStart + offset,
+                        width = paint.measureText(displayed),
+                        baselineY = baseline
+                    )
+                    offset += consumed
+                    while (offset < paragraph.length && paragraph[offset].isWhitespace()) offset++
+                    baseline += lineHeight
                 }
             } else {
-                val w = paint.measureText(para) * MM_PER_PX
-                lines.add(Line(para, index, w, baselineY))
-                index += para.length + 1 // +1 for \n
-                baselineY += lineHeightMm
+                lines += Line(
+                    text = paragraph,
+                    startIndex = paragraphStart,
+                    width = paint.measureText(paragraph),
+                    baselineY = baseline
+                )
+                baseline += lineHeight
             }
+
+            paragraphStart += paragraph.length
+            if (paragraphIndex < paragraphs.lastIndex) paragraphStart++
         }
 
         if (lines.isEmpty()) {
-            lines.add(Line("", 0, 0f, -paint.ascent() * MM_PER_PX))
+            lines += Line("", 0, 0f, -paint.ascent())
         }
 
-        // Alignment offsets per line (paragraph mode only; artistic left-aligns at anchor)
-        val maxWidth = if (shape.kind == TextShape.Kind.PARAGRAPH) shape.frameWidth
-        else lines.maxOf { it.width }
-
-        val totalHeight = (lines.last().baselineY + paint.descent() * MM_PER_PX)
-        val bounds = Rect(0f, 0f, maxWidth, totalHeight)
-
-        return Layout(lines, bounds, lineHeightMm, paint)
+        val width = if (shape.kind == TextShape.Kind.PARAGRAPH && shape.frameWidth > 0f) {
+            shape.frameWidth
+        } else {
+            lines.maxOf { it.width }
+        }
+        val height = lines.last().baselineY + paint.descent()
+        return Layout(lines, Rect(0f, 0f, width, height), lineHeight, paint)
     }
 
-    /** X offset for a line given alignment (mm). */
     fun lineXOffset(shape: TextShape, line: Line, layout: Layout): Float = when (shape.align) {
         TextShape.Align.LEFT -> 0f
         TextShape.Align.CENTER -> (layout.bounds.width - line.width) / 2f
         TextShape.Align.RIGHT -> layout.bounds.width - line.width
     }
 
-    /** Caret (x, top, bottom) in local mm for a text index. */
+    /** Returns caret x, top and bottom in local document coordinates. */
     fun caretFor(shape: TextShape, layout: Layout, index: Int): Triple<Float, Float, Float> {
         val clamped = index.coerceIn(0, shape.text.length)
         val line = layout.lines.lastOrNull { it.startIndex <= clamped } ?: layout.lines.first()
         val inLine = (clamped - line.startIndex).coerceIn(0, line.text.length)
-        val xPx = layout.paint.measureText(line.text.substring(0, inLine))
-        val x = lineXOffset(shape, line, layout) + xPx * MM_PER_PX
-        val top = line.baselineY + layout.paint.ascent() * MM_PER_PX
-        val bottom = line.baselineY + layout.paint.descent() * MM_PER_PX
+        val x = lineXOffset(shape, line, layout) +
+            layout.paint.measureText(line.text.substring(0, inLine))
+        val top = line.baselineY + layout.paint.ascent()
+        val bottom = line.baselineY + layout.paint.descent()
         return Triple(x, top, bottom)
     }
 
-    /** Nearest text index for a local point (mm). */
     fun indexForPoint(shape: TextShape, layout: Layout, x: Float, y: Float): Int {
-        val line = layout.lines.minByOrNull { kotlin.math.abs(it.baselineY - y) }
-            ?: return 0
+        val line = layout.lines.minByOrNull {
+            val top = it.baselineY + layout.paint.ascent()
+            val bottom = it.baselineY + layout.paint.descent()
+            abs((top + bottom) / 2f - y)
+        } ?: return 0
+
         val localX = x - lineXOffset(shape, line, layout)
-        val xPx = localX / MM_PER_PX
-        // Walk to nearest char boundary
-        var best = 0
-        var bestDist = Float.MAX_VALUE
-        for (i in 0..line.text.length) {
-            val cx = layout.paint.measureText(line.text.substring(0, i))
-            val d = kotlin.math.abs(cx - xPx)
-            if (d < bestDist) { bestDist = d; best = i }
+        var bestIndex = 0
+        var bestDistance = Float.MAX_VALUE
+        for (index in 0..line.text.length) {
+            val caretX = layout.paint.measureText(line.text.substring(0, index))
+            val distance = abs(caretX - localX)
+            if (distance < bestDistance) {
+                bestDistance = distance
+                bestIndex = index
+            }
         }
-        return (line.startIndex + best).coerceIn(0, shape.text.length)
+        return (line.startIndex + bestIndex).coerceIn(0, shape.text.length)
     }
 
-    /** Measure and update a TextShape's cached bounds. */
-    fun measure(shape: TextShape): TextShape {
-        val layout = layout(shape)
-        return shape.copy(measuredBounds = layout.bounds)
-    }
+    fun measure(shape: TextShape): TextShape =
+        shape.copy(measuredBounds = layout(shape).bounds)
 }

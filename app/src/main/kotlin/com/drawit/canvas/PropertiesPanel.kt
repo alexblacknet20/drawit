@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenuItem
@@ -32,16 +33,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.drawit.core.color.Color
 import com.drawit.core.document.BlendMode
+import com.drawit.core.document.CornerStyle
 import com.drawit.core.document.Fill
 import com.drawit.core.document.GradientStop
+import com.drawit.core.document.ShadowEffect
 import com.drawit.core.document.Shape
 import com.drawit.core.document.Stroke
+import com.drawit.core.document.TextShape
 import com.drawit.core.geometry.Matrix
 import com.drawit.core.geometry.Rect
+import com.drawit.text.FontManager
+import com.drawit.text.TextEngine
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -59,19 +69,25 @@ import kotlin.math.roundToInt
 @Composable
 fun PropertiesPanel(
     editorState: EditorState,
-    onPickFillColor: (Color) -> Unit,
-    onPickStrokeColor: (Color) -> Unit,
+    fontManager: FontManager,
+    textEngine: TextEngine,
+    onPickColor: (title: String, initial: Color, onSelected: (Color) -> Unit) -> Unit,
+    onPickPatternImage: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val selected = editorState.selectedShapes()
     val unit = editorState.document.displayUnit
 
     if (selected.isEmpty()) {
-        Column(modifier = modifier.padding(16.dp)) {
+        Column(
+            modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Text("No selection", style = MaterialTheme.typography.titleSmall)
             Text("Tap a shape with the Select tool to edit properties.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+            EditorControls(editorState)
         }
         return
     }
@@ -117,10 +133,16 @@ fun PropertiesPanel(
             is Fill.Solid -> {
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.size(32.dp).background(
-                        androidx.compose.ui.graphics.Color(fill.color.toArgb()))
-                        .border(1.dp, MaterialTheme.colorScheme.outline)
-                        .clickable { onPickFillColor(fill.color) }
+                     Box(Modifier.size(32.dp).background(
+                         androidx.compose.ui.graphics.Color(fill.color.toArgb()))
+                         .border(1.dp, MaterialTheme.colorScheme.outline)
+                        .clickable {
+                            onPickColor("Fill Color", fill.color) { color ->
+                                editorState.updateSelectedShapes("Fill Color") {
+                                    it.withFill(Fill.Solid(color))
+                                }
+                            }
+                        }
                     )
                     Text(fill.color.toHexString(), style = MaterialTheme.typography.labelMedium)
                 }
@@ -130,14 +152,16 @@ fun PropertiesPanel(
                 onUpdate = { g ->
                     editorState.updateSelectedShapes("Gradient") { it.withFill(g) }
                 },
-                onPickColor = onPickFillColor
+                onPickColor = { initial, onSelected ->
+                    onPickColor("Gradient Stop Color", initial, onSelected)
+                }
             )
             is Fill.Pattern -> PatternEditor(
                 fill = fill,
                 onUpdate = { p ->
                     editorState.updateSelectedShapes("Pattern") { it.withFill(p) }
                 },
-                onPickImage = { /* handled in CanvasScreen's image import */ }
+                onPickImage = onPickPatternImage
             )
             Fill.None -> {}
         }
@@ -148,10 +172,17 @@ fun PropertiesPanel(
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             val strokeColor = first.stroke?.color
             Box(Modifier.size(32.dp).background(
-                strokeColor?.let { androidx.compose.ui.graphics.Color(it.toArgb()) }
-                    ?: androidx.compose.ui.graphics.Color.Transparent)
-                .border(1.dp, MaterialTheme.colorScheme.outline)
-                .clickable { strokeColor?.let { onPickStrokeColor(it) } }
+                 strokeColor?.let { androidx.compose.ui.graphics.Color(it.toArgb()) }
+                     ?: androidx.compose.ui.graphics.Color.Transparent)
+                 .border(1.dp, MaterialTheme.colorScheme.outline)
+                .clickable {
+                    val initial = strokeColor ?: Color.BLACK
+                    onPickColor("Stroke Color", initial) { color ->
+                        editorState.updateSelectedShapes("Stroke Color") {
+                            it.withStroke((it.stroke ?: Stroke()).copy(color = color))
+                        }
+                    }
+                }
             )
             TextButton(onClick = {
                 editorState.updateSelectedShapes("No Stroke") { it.withStroke(null) }
@@ -192,6 +223,230 @@ fun PropertiesPanel(
                 })
         }
 
+        if (first is TextShape) {
+            SectionLabel("Text")
+            val fonts = fontManager.availableFonts()
+            val selectedFont = fonts.firstOrNull { it.key == first.fontFamily }
+            EnumDropdown(
+                label = "Font",
+                options = fonts.map { it.displayName },
+                selected = selectedFont?.displayName ?: first.fontFamily,
+                onSelect = { displayName ->
+                    val key = fonts.firstOrNull { it.displayName == displayName }?.key
+                    if (key != null) {
+                        editorState.updateSelectedShapes("Font") { shape ->
+                            if (shape is TextShape) {
+                                textEngine.measure(shape.copy(fontFamily = key))
+                            } else {
+                                shape
+                            }
+                        }
+                    }
+                }
+            )
+            EnumDropdown(
+                label = "Weight",
+                options = TextShape.Weight.entries.map { it.displayName },
+                selected = first.fontWeight.displayName,
+                onSelect = { displayName ->
+                    val weight = TextShape.Weight.entries.first { it.displayName == displayName }
+                    editorState.updateSelectedShapes("Font Weight") { shape ->
+                        if (shape is TextShape) {
+                            textEngine.measure(shape.copy(fontWeight = weight))
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Italic", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = first.italic,
+                    onCheckedChange = { italic ->
+                        editorState.updateSelectedShapes("Italic") { shape ->
+                            if (shape is TextShape) {
+                                textEngine.measure(shape.copy(italic = italic))
+                            } else {
+                                shape
+                            }
+                        }
+                    }
+                )
+            }
+            NumericField(
+                label = "Size (${unit.shortName})",
+                value = unit.fromMm(first.textSize),
+                onValue = { value ->
+                    val sizeMm = unit.toMm(value).coerceAtLeast(0.5f)
+                    editorState.updateSelectedShapes("Text Size") { shape ->
+                        if (shape is TextShape) {
+                            textEngine.measure(shape.copy(textSize = sizeMm))
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+            EnumDropdown(
+                label = "Alignment",
+                options = TextShape.Align.entries.map { it.displayName },
+                selected = first.align.displayName,
+                onSelect = { displayName ->
+                    val align = TextShape.Align.entries.first { it.displayName == displayName }
+                    editorState.updateSelectedShapes("Text Alignment") { shape ->
+                        if (shape is TextShape) {
+                            textEngine.measure(shape.copy(align = align))
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+            if (first.kind == TextShape.Kind.PARAGRAPH) {
+                NumericField(
+                    label = "Frame Width (${unit.shortName})",
+                    value = unit.fromMm(first.frameWidth),
+                    onValue = { value ->
+                        val widthMm = unit.toMm(value).coerceAtLeast(1f)
+                        editorState.updateSelectedShapes("Text Frame Width") { shape ->
+                            if (shape is TextShape) {
+                                textEngine.measure(shape.copy(frameWidth = widthMm))
+                            } else {
+                                shape
+                            }
+                        }
+                    }
+                )
+            }
+        }
+
+        if (first is Shape.PolygonShape) {
+            SectionLabel("Polygon")
+            NumericField(
+                label = "Sides",
+                value = first.sides.toFloat(),
+                onValue = { value ->
+                    editorState.updateSelectedShapes("Polygon Sides") { shape ->
+                        if (shape is Shape.PolygonShape) {
+                            shape.copy(sides = value.roundToInt().coerceIn(3, 64))
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+            NumericField(
+                label = "Vertex rotation (°)",
+                value = first.rotationDegrees,
+                onValue = { value ->
+                    editorState.updateSelectedShapes("Polygon Rotation") { shape ->
+                        if (shape is Shape.PolygonShape) {
+                            shape.copy(rotationDegrees = value)
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+        }
+
+        if (first is Shape.EllipseShape) {
+            SectionLabel("Ellipse / Arc")
+            NumericField(
+                label = "Start (°)",
+                value = first.startAngleDegrees,
+                onValue = { value ->
+                    editorState.updateSelectedShapes("Arc Start") { shape ->
+                        if (shape is Shape.EllipseShape) {
+                            shape.copy(startAngleDegrees = normalizeDegrees(value))
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+            NumericField(
+                label = "Sweep (°)",
+                value = first.sweepDegrees,
+                onValue = { value ->
+                    editorState.updateSelectedShapes("Arc Sweep") { shape ->
+                        if (shape is Shape.EllipseShape) {
+                            shape.copy(sweepDegrees = value.coerceIn(0.1f, 360f))
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+            Text(
+                "Arc ratio ${(first.arcRatio * 100f).roundToInt()}%",
+                style = MaterialTheme.typography.labelSmall
+            )
+            Slider(
+                value = first.arcRatio.coerceIn(0f, 0.95f),
+                valueRange = 0f..0.95f,
+                onValueChange = { ratio ->
+                    editorState.updateSelectedShapes("Arc Ratio") { shape ->
+                        if (shape is Shape.EllipseShape) {
+                            shape.copy(arcRatio = ratio.coerceIn(0f, 0.95f))
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+            Text(
+                "Blue S/E/R handles on the canvas edit Start, End/Sweep and inner Ratio.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (first is Shape.RectShape) {
+            SectionLabel("Corners")
+            EnumDropdown(
+                label = "Treatment",
+                options = CornerStyle.entries.map { it.displayName },
+                selected = first.cornerStyle.displayName,
+                onSelect = { displayName ->
+                    val style = CornerStyle.entries.first { it.displayName == displayName }
+                    editorState.updateSelectedShapes("Corner Treatment") { shape ->
+                        if (shape is Shape.RectShape) {
+                            shape.copy(cornerStyle = style)
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+            NumericField(
+                label = "Radius (${unit.shortName})",
+                value = unit.fromMm(first.cornerRadius),
+                onValue = { value ->
+                    val radius = unit.toMm(value).coerceAtLeast(0f)
+                    editorState.updateSelectedShapes("Corner Radius") { shape ->
+                        if (shape is Shape.RectShape) {
+                            shape.copy(cornerRadius = radius)
+                        } else {
+                            shape
+                        }
+                    }
+                }
+            )
+        }
+
+        EffectsEditor(
+            editorState = editorState,
+            first = first,
+            unit = unit,
+            onPickColor = onPickColor
+        )
+
         // ---- Opacity + blend ----
         SectionLabel("Blend")
         Text("${(first.opacity * 100).roundToInt()}%", style = MaterialTheme.typography.labelSmall)
@@ -206,6 +461,12 @@ fun PropertiesPanel(
         // ---- Geometry + Rotation ----
         if (bounds != null) {
             SectionLabel("Geometry (${unit.shortName})")
+            Text(
+                "Blue corner handles resize in the object's local axes. " +
+                    "The round handle rotates; orange diamond handles skew.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 NumericField("X", unit.fromMm(bounds.left), { move(editorState, xMm = unit.toMm(it)) }, Modifier.weight(1f))
                 NumericField("Y", unit.fromMm(bounds.top), { move(editorState, yMm = unit.toMm(it)) }, Modifier.weight(1f))
@@ -219,17 +480,17 @@ fun PropertiesPanel(
             SectionLabel("Rotation (°)")
             val rotDeg = rotationDegrees(first.transform)
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                var rotText by remember(rotDeg) { mutableStateOf(trimNum(rotDeg)) }
-                OutlinedTextField(value = rotText, onValueChange = { t ->
-                    rotText = t; t.toFloatOrNull()?.let { setRotate(editorState, it, bounds.center) }
-                }, label = { Text("Angle") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.weight(1f))
-                // Pivot dropdown
+                var pivotName by remember(editorState.selectedShapeIds) { mutableStateOf("Center") }
+                val pivot = pivotFor(bounds, pivotName)
+                NumericField(
+                    label = "Angle",
+                    value = rotDeg,
+                    onValue = { setRotate(editorState, it, pivot) },
+                    modifier = Modifier.weight(1f)
+                )
                 val pivots = listOf("Center", "TL", "TR", "BL", "BR")
-                val selPivot = "Center" // v1 fixed to center
-                EnumDropdown(label = "Pivot", options = pivots, selected = selPivot,
-                    onSelect = {}, modifier = Modifier.weight(1f))
+                EnumDropdown(label = "Pivot", options = pivots, selected = pivotName,
+                    onSelect = { pivotName = it }, modifier = Modifier.weight(1f))
             }
         }
 
@@ -248,35 +509,265 @@ fun PropertiesPanel(
                 editorState.updateSelectedShapes("Lock") { it.withLocked(v) }
             })
         }
+
+        EditorControls(editorState)
     }
+}
+
+@Composable
+private fun EditorControls(editorState: EditorState) {
+    SectionLabel("Editor controls")
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("Smart Alignments", style = MaterialTheme.typography.bodyMedium)
+        Switch(
+            checked = editorState.smartAlignmentsEnabled,
+            onCheckedChange = { editorState.smartAlignmentsEnabled = it }
+        )
+    }
+    Text(
+        "Handle size ${editorState.controlHandleSizePx.roundToInt()} px",
+        style = MaterialTheme.typography.labelSmall
+    )
+    Slider(
+        value = editorState.controlHandleSizePx.coerceIn(3f, 14f),
+        valueRange = 3f..14f,
+        steps = 10,
+        onValueChange = { editorState.controlHandleSizePx = it.coerceIn(3f, 14f) }
+    )
+}
+
+@Composable
+private fun EffectsEditor(
+    editorState: EditorState,
+    first: Shape,
+    unit: com.drawit.core.document.Unit,
+    onPickColor: (title: String, initial: Color, onSelected: (Color) -> Unit) -> Unit
+) {
+    SectionLabel("Effects")
+
+    EffectToggle(
+        label = "Drop shadow",
+        checked = first.effects.dropShadow != null,
+        onChecked = { enabled ->
+            editorState.updateSelectedShapes("Drop Shadow") { shape ->
+                shape.withEffects(
+                    shape.effects.copy(
+                        dropShadow = if (enabled) {
+                            shape.effects.dropShadow ?: ShadowEffect()
+                        } else {
+                            null
+                        }
+                    )
+                )
+            }
+        }
+    )
+    first.effects.dropShadow?.let { shadow ->
+        ShadowControls(
+            shadow = shadow,
+            unit = unit,
+            onPickColor = { initial, selected ->
+                onPickColor("Drop shadow color", initial, selected)
+            },
+            onUpdate = { updated ->
+                editorState.updateSelectedShapes("Drop Shadow Settings") { shape ->
+                    shape.withEffects(
+                        shape.effects.copy(
+                            dropShadow = (shape.effects.dropShadow ?: ShadowEffect()).copy(
+                                offsetX = updated.offsetX,
+                                offsetY = updated.offsetY,
+                                blurRadius = updated.blurRadius,
+                                color = updated.color,
+                                opacity = updated.opacity
+                            )
+                        )
+                    )
+                }
+            }
+        )
+    }
+
+    NumericField(
+        label = "Edge blur (${unit.shortName})",
+        value = unit.fromMm(first.effects.edgeBlurRadius),
+        onValue = { displayed ->
+            val radius = unit.toMm(displayed).coerceAtLeast(0f)
+            editorState.updateSelectedShapes("Edge Blur") { shape ->
+                shape.withEffects(shape.effects.copy(edgeBlurRadius = radius))
+            }
+        }
+    )
+
+    EffectToggle(
+        label = "Inside shadow",
+        checked = first.effects.innerShadow != null,
+        onChecked = { enabled ->
+            editorState.updateSelectedShapes("Inside Shadow") { shape ->
+                shape.withEffects(
+                    shape.effects.copy(
+                        innerShadow = if (enabled) {
+                            shape.effects.innerShadow ?: ShadowEffect(
+                                offsetX = 1.5f,
+                                offsetY = 1.5f,
+                                blurRadius = 2.5f,
+                                opacity = 0.35f
+                            )
+                        } else {
+                            null
+                        }
+                    )
+                )
+            }
+        }
+    )
+    first.effects.innerShadow?.let { shadow ->
+        ShadowControls(
+            shadow = shadow,
+            unit = unit,
+            onPickColor = { initial, selected ->
+                onPickColor("Inside shadow color", initial, selected)
+            },
+            onUpdate = { updated ->
+                editorState.updateSelectedShapes("Inside Shadow Settings") { shape ->
+                    shape.withEffects(
+                        shape.effects.copy(
+                            innerShadow = (shape.effects.innerShadow ?: ShadowEffect()).copy(
+                                offsetX = updated.offsetX,
+                                offsetY = updated.offsetY,
+                                blurRadius = updated.blurRadius,
+                                color = updated.color,
+                                opacity = updated.opacity
+                            )
+                        )
+                    )
+                }
+            }
+        )
+    }
+
+    Text(
+        "Noise ${(first.effects.noiseAmount * 100f).roundToInt()}%",
+        style = MaterialTheme.typography.labelSmall
+    )
+    Slider(
+        value = first.effects.noiseAmount.coerceIn(0f, 1f),
+        onValueChange = { amount ->
+            editorState.updateSelectedShapes("Noise") { shape ->
+                shape.withEffects(shape.effects.copy(noiseAmount = amount.coerceIn(0f, 1f)))
+            }
+        }
+    )
+}
+
+@Composable
+private fun EffectToggle(label: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = checked, onCheckedChange = onChecked)
+    }
+}
+
+@Composable
+private fun ShadowControls(
+    shadow: ShadowEffect,
+    unit: com.drawit.core.document.Unit,
+    onPickColor: (Color, (Color) -> Unit) -> Unit,
+    onUpdate: (ShadowEffect) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            Modifier
+                .size(28.dp)
+                .background(androidx.compose.ui.graphics.Color(shadow.color.toArgb()))
+                .border(1.dp, MaterialTheme.colorScheme.outline)
+                .clickable {
+                    onPickColor(shadow.color) { selected ->
+                        onUpdate(shadow.copy(color = selected))
+                    }
+                }
+        )
+        Text("Color", style = MaterialTheme.typography.labelMedium)
+        Text(
+            "${(shadow.opacity * 100f).roundToInt()}%",
+            style = MaterialTheme.typography.labelSmall
+        )
+    }
+    Slider(
+        value = shadow.opacity.coerceIn(0f, 1f),
+        onValueChange = { onUpdate(shadow.copy(opacity = it.coerceIn(0f, 1f))) }
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        NumericField(
+            "Offset X",
+            unit.fromMm(shadow.offsetX),
+            { onUpdate(shadow.copy(offsetX = unit.toMm(it))) },
+            Modifier.weight(1f)
+        )
+        NumericField(
+            "Offset Y",
+            unit.fromMm(shadow.offsetY),
+            { onUpdate(shadow.copy(offsetY = unit.toMm(it))) },
+            Modifier.weight(1f)
+        )
+    }
+    NumericField(
+        "Blur (${unit.shortName})",
+        unit.fromMm(shadow.blurRadius),
+        { onUpdate(shadow.copy(blurRadius = unit.toMm(it).coerceAtLeast(0f))) }
+    )
 }
 
 // ---- Gradient editor ----
 
 @Composable
-private fun GradientEditor(fill: Fill.Gradient, onUpdate: (Fill.Gradient) -> Unit, onPickColor: (Color) -> Unit) {
+private fun GradientEditor(
+    fill: Fill.Gradient,
+    onUpdate: (Fill.Gradient) -> Unit,
+    onPickColor: (initial: Color, onSelected: (Color) -> Unit) -> Unit
+) {
     Text("Stops", style = MaterialTheme.typography.labelMedium)
-    fill.stops.sortedBy { it.position }.forEach { stop ->
+    fill.stops.withIndex().sortedBy { it.value.position }.forEach { indexedStop ->
+        val originalIndex = indexedStop.index
+        val stop = indexedStop.value
         Row(verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.fillMaxWidth()) {
             // Color patch
             Box(Modifier.size(24.dp).background(androidx.compose.ui.graphics.Color(stop.color.toArgb()))
                 .border(1.dp, MaterialTheme.colorScheme.outline)
-                .clickable { onPickColor(stop.color) })
+                .clickable {
+                    onPickColor(stop.color) { selectedColor ->
+                        val newStops = fill.stops.toMutableList().also {
+                            it[originalIndex] = stop.copy(color = selectedColor)
+                        }
+                        onUpdate(fill.copy(stops = newStops))
+                    }
+                })
             // Position slider
             Slider(value = stop.position, onValueChange = { pos ->
-                val idx = fill.stops.indexOf(stop)
-                if (idx >= 0) {
-                    val newStops = fill.stops.toMutableList().also { it[idx] = stop.copy(position = pos) }
-                    onUpdate(fill.copy(stops = newStops))
+                val newStops = fill.stops.toMutableList().also {
+                    it[originalIndex] = stop.copy(position = pos)
                 }
+                onUpdate(fill.copy(stops = newStops))
             }, modifier = Modifier.weight(1f))
             Text("${(stop.position*100).roundToInt()}%", style = MaterialTheme.typography.labelSmall)
             // Remove button (if >2 stops)
             if (fill.stops.size > 2) {
                 IconButton(onClick = {
-                    onUpdate(fill.copy(stops = fill.stops.filter { it != stop }))
+                    onUpdate(fill.copy(stops = fill.stops.filterIndexed { index, _ ->
+                        index != originalIndex
+                    }))
                 }, modifier = Modifier.size(24.dp)) {
                     Text("✕", style = MaterialTheme.typography.labelSmall)
                 }
@@ -286,7 +777,13 @@ private fun GradientEditor(fill: Fill.Gradient, onUpdate: (Fill.Gradient) -> Uni
     // Add stop
     if (fill.stops.size < 8) {
         TextButton(onClick = {
-            val midPos = fill.stops.map { it.position }.let { (it.max()+it.min())/2f }
+            val sorted = fill.stops.sortedBy { it.position }
+            val largestGap = sorted.zipWithNext().maxByOrNull { (a, b) ->
+                b.position - a.position
+            }
+            val midPos = largestGap?.let { (a, b) ->
+                (a.position + b.position) / 2f
+            } ?: 0.5f
             onUpdate(fill.copy(stops = fill.stops + GradientStop(midPos, Color.GRAY)))
         }) { Text("+ Add Stop", style = MaterialTheme.typography.labelSmall) }
     }
@@ -340,10 +837,25 @@ private fun SectionLabel(text: String) {
 @Composable
 private fun NumericField(label: String, value: Float, onValue: (Float) -> Unit, modifier: Modifier = Modifier) {
     var text by remember(value) { mutableStateOf(trimNum(value)) }
-    OutlinedTextField(value = text, onValueChange = { t -> text = t; t.toFloatOrNull()?.let(onValue) },
+    var wasFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    fun commit() {
+        text.toFloatOrNull()?.let(onValue)
+    }
+    OutlinedTextField(value = text, onValueChange = { text = it },
         label = { Text(label) }, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        modifier = modifier.fillMaxWidth())
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Decimal,
+            imeAction = ImeAction.Done
+        ),
+        keyboardActions = KeyboardActions(onDone = {
+            commit()
+            focusManager.clearFocus()
+        }),
+        modifier = modifier.fillMaxWidth().onFocusChanged { state ->
+            if (wasFocused && !state.isFocused) commit()
+            wasFocused = state.isFocused
+        })
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -369,7 +881,11 @@ private fun fillTypeLabel(fill: Fill): String = when (fill) {
 }
 
 private fun trimNum(v: Float): String =
-    if (v == v.toLong().toFloat()) v.toLong().toString() else "%.2f".format(v).trimEnd('0').trimEnd('.')
+    if (v == v.toLong().toFloat()) {
+        v.toLong().toString()
+    } else {
+        String.format(Locale.US, "%.2f", v).trimEnd('0').trimEnd('.')
+    }
 
 private fun move(es: EditorState, xMm: Float? = null, yMm: Float? = null) {
     val b = es.selectionBounds() ?: return
@@ -391,11 +907,24 @@ private fun rotationDegrees(m: Matrix): Float {
     return Math.toDegrees(angle).toFloat()
 }
 
+private fun normalizeDegrees(value: Float): Float {
+    val normalized = value % 360f
+    return if (normalized < 0f) normalized + 360f else normalized
+}
+
 private fun setRotate(es: EditorState, degrees: Float, pivot: com.drawit.core.geometry.Point) {
-    val rad = Math.toRadians(degrees.toDouble()).toFloat()
-    val r = Matrix.rotate(rad, pivot)
+    val currentDegrees = es.selectedShapes().firstOrNull()?.let { rotationDegrees(it.transform) } ?: return
+    val deltaRad = Math.toRadians((degrees - currentDegrees).toDouble()).toFloat()
+    val rotation = Matrix.rotate(deltaRad, pivot)
     es.updateSelectedShapes("Rotate") {
-        // Remove existing rotation part and apply new; simplify: pre-multiply rotation
-        it.withTransform(r * it.transform)
+        it.withTransform(rotation * it.transform)
     }
+}
+
+private fun pivotFor(bounds: Rect, name: String): com.drawit.core.geometry.Point = when (name) {
+    "TL" -> bounds.topLeft
+    "TR" -> bounds.topRight
+    "BL" -> bounds.bottomLeft
+    "BR" -> bounds.bottomRight
+    else -> bounds.center
 }

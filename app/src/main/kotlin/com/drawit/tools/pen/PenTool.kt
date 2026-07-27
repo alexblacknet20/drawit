@@ -7,6 +7,7 @@ import com.drawit.core.document.Shape
 import com.drawit.core.document.Stroke
 import com.drawit.core.geometry.PathData
 import com.drawit.core.geometry.Point
+import com.drawit.core.geometry.Rect
 import com.drawit.core.input.Tool
 import com.drawit.core.input.ToolContext
 import com.drawit.core.input.ToolEvent
@@ -58,6 +59,10 @@ class PenTool(
             }
             is ToolEvent.Up -> {
                 if (!isDrawing) return false
+                val last = currentPoints.lastOrNull()
+                if (last == null || event.position.distanceTo(last.first) > 0.001f) {
+                    currentPoints.add(event.position to event.pressure)
+                }
                 finishStroke()
                 true
             }
@@ -70,22 +75,70 @@ class PenTool(
     }
 
     private fun finishStroke() {
-        if (currentPoints.size >= 2) {
-            val pathData = smoothPath(currentPoints)
-            val avgPressure = currentPoints.map { it.second }.average().toFloat()
-            val width = if (usePressure) baseStrokeWidth * (0.3f + 0.7f * avgPressure) * 2f
-                        else baseStrokeWidth
-
-            val shape = Shape.PathShape(
-                name = "Stroke",
-                pathData = pathData,
-                fill = Fill.None,
-                stroke = Stroke(color = strokeColor, width = width, cap = Stroke.Cap.ROUND, join = Stroke.Join.ROUND)
-            )
+        if (currentPoints.isNotEmpty()) {
+            val shape = if (usePressure) {
+                Shape.PathShape(
+                    name = "Brush Stroke",
+                    pathData = pressureOutline(currentPoints),
+                    fill = Fill.Solid(strokeColor),
+                    stroke = null
+                )
+            } else {
+                val pathData = if (currentPoints.size == 1) {
+                    val point = currentPoints.first().first
+                    PathData.EMPTY.moveTo(point).lineTo(Point(point.x + 0.001f, point.y))
+                } else {
+                    smoothPath(currentPoints)
+                }
+                Shape.PathShape(
+                    name = "Stroke",
+                    pathData = pathData,
+                    fill = Fill.None,
+                    stroke = Stroke(
+                        color = strokeColor,
+                        width = baseStrokeWidth,
+                        cap = Stroke.Cap.ROUND,
+                        join = Stroke.Join.ROUND
+                    )
+                )
+            }
             state.addShape(shape)
         }
         currentPoints.clear()
         isDrawing = false
+    }
+
+    private fun pressureOutline(samples: List<Pair<Point, Float>>): PathData {
+        if (samples.size == 1) {
+            val pressure = samples.first().second.coerceIn(0f, 1f)
+            val width = baseStrokeWidth * (0.3f + 0.7f * pressure)
+            return PathData.ellipse(Rect.fromCenter(samples.first().first, width, width))
+        }
+
+        val pressures = MutableList(samples.size) { 1f }
+        pressures[0] = samples[0].second.coerceIn(0f, 1f)
+        for (index in 1 until samples.size) {
+            val raw = samples[index].second.coerceIn(0f, 1f)
+            pressures[index] = pressures[index - 1] + (raw - pressures[index - 1]) * 0.25f
+        }
+
+        val left = ArrayList<Point>(samples.size)
+        val right = ArrayList<Point>(samples.size)
+        samples.indices.forEach { index ->
+            val previous = samples[maxOf(0, index - 1)].first
+            val next = samples[minOf(samples.lastIndex, index + 1)].first
+            val tangent = next - previous
+            val length = tangent.length.coerceAtLeast(0.0001f)
+            val normal = Point(-tangent.y / length, tangent.x / length)
+            val halfWidth = baseStrokeWidth * (0.3f + 0.7f * pressures[index]) / 2f
+            left += samples[index].first + normal * halfWidth
+            right += samples[index].first - normal * halfWidth
+        }
+
+        var path = PathData.EMPTY.moveTo(left.first())
+        left.drop(1).forEach { path = path.lineTo(it) }
+        right.asReversed().forEach { path = path.lineTo(it) }
+        return path.close()
     }
 
     private fun cancelStroke() {

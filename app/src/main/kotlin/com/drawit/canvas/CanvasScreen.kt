@@ -5,6 +5,7 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,10 +16,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Circle
+import androidx.compose.material.icons.filled.ChangeHistory
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.CropSquare
 import androidx.compose.material.icons.filled.Delete
@@ -47,9 +50,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,41 +62,51 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.drawit.core.color.Color as DrawItColor
 import com.drawit.core.document.Fill
-import com.drawit.core.document.Stroke
+import com.drawit.core.document.Shape
 import com.drawit.core.document.TextShape
+import com.drawit.core.geometry.Matrix
 import com.drawit.file.DrawItFile
 import com.drawit.file.ImageStore
+import com.drawit.file.PdfExporter
+import com.drawit.file.RasterExporter
 import com.drawit.file.SvgImporter
 import com.drawit.shapes.BooleanOps
 import com.drawit.text.FontManager
 import com.drawit.text.TextEngine
 import com.drawit.tools.pen.BezierPenTool
 import com.drawit.tools.pen.PenTool
+import com.drawit.tools.node.NodeEditTool
 import com.drawit.tools.select.SelectTool
 import com.drawit.tools.shape.ShapeTool
 import com.drawit.tools.text.TextTool
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private enum class DockTab { OBJECTS, PROPERTIES }
-private enum class ColorTarget { FILL, STROKE }
+private enum class DockTab { OBJECTS, PROPERTIES, ARTBOARDS }
+private data class ColorDialogRequest(
+    val title: String,
+    val initial: DrawItColor,
+    val onConfirm: (DrawItColor) -> Unit
+)
+private data class OpenedDocument(
+    val document: com.drawit.core.document.Document,
+    val canSaveToSource: Boolean
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CanvasScreen() {
     val editorState = remember { EditorState() }
     val context = LocalContext.current
-    val scope = remember { CoroutineScope(Dispatchers.Main) }
+    val scope = rememberCoroutineScope()
     val imageStore = remember { ImageStore(context) }
     val fontManager = remember { FontManager(context) }
     val textEngine = remember { TextEngine(fontManager) }
 
     // UI state
     var showNewDocDialog by remember { mutableStateOf(false) }
-    var colorDialogTarget by remember { mutableStateOf<ColorTarget?>(null) }
-    var colorDialogInitial by remember { mutableStateOf(DrawItColor(0, 120, 215)) }
+    var colorDialogRequest by remember { mutableStateOf<ColorDialogRequest?>(null) }
     var showMenu by remember { mutableStateOf(false) }
     var phoneSheet by remember { mutableStateOf<DockTab?>(null) }
     var dockTab by remember { mutableStateOf(DockTab.OBJECTS) }
@@ -111,20 +124,39 @@ fun CanvasScreen() {
                 withContext(Dispatchers.IO) {
                     val name = queryDisplayName(context, uri) ?: "document"
                     context.contentResolver.openInputStream(uri)?.use { input ->
+                        val bytes = input.readBytes()
                         when (DrawItFile.detectType(name)) {
-                            DrawItFile.Type.DRAWIT -> DrawItFile.read(input)
-                            DrawItFile.Type.SVG -> SvgImporter.import(input, name)
+                            DrawItFile.Type.DRAWIT -> OpenedDocument(
+                                DrawItFile.read(bytes.inputStream(), imageStore, fontManager),
+                                canSaveToSource = true
+                            )
+                            DrawItFile.Type.SVG -> OpenedDocument(
+                                SvgImporter.import(bytes.inputStream(), name),
+                                canSaveToSource = false
+                            )
                             DrawItFile.Type.UNKNOWN ->
-                                // Try drawit first, fall back to SVG
-                                runCatching { DrawItFile.read(input) }.getOrElse {
-                                    throw IllegalArgumentException("Unsupported file type: $name")
+                                runCatching {
+                                    OpenedDocument(
+                                        DrawItFile.read(bytes.inputStream(), imageStore, fontManager),
+                                        canSaveToSource = true
+                                    )
+                                }.recoverCatching {
+                                    OpenedDocument(
+                                        SvgImporter.import(bytes.inputStream(), name),
+                                        canSaveToSource = false
+                                    )
+                                }.getOrElse {
+                                    throw IllegalArgumentException("Unsupported file type: $name", it)
                                 }
                         }
                     } ?: throw IllegalArgumentException("Cannot open file")
                 }
-            }.onSuccess { doc ->
-                editorState.loadDocument(doc, uri)
-                statusMessage = "Opened: ${doc.name}"
+            }.onSuccess { opened ->
+                editorState.loadDocument(
+                    opened.document,
+                    if (opened.canSaveToSource) uri else null
+                )
+                statusMessage = "Opened: ${opened.document.name}"
             }.onFailure { e ->
                 statusMessage = "Open failed: ${e.message}"
             }
@@ -139,7 +171,7 @@ fun CanvasScreen() {
             runCatching {
                 withContext(Dispatchers.IO) {
                     context.contentResolver.openOutputStream(uri)?.use { out ->
-                        DrawItFile.write(editorState.document, out)
+                        DrawItFile.write(editorState.document, out, imageStore, fontManager)
                     } ?: throw IllegalArgumentException("Cannot write file")
                 }
             }.onSuccess {
@@ -147,6 +179,110 @@ fun CanvasScreen() {
                 statusMessage = "Saved"
             }.onFailure { e ->
                 statusMessage = "Save failed: ${e.message}"
+            }
+        }
+    }
+
+    val pdfExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri: Uri? ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        PdfExporter.write(
+                            editorState.document,
+                            output,
+                            imageStore,
+                            fontManager
+                        )
+                    } ?: throw IllegalStateException("Cannot write PDF")
+                }
+            }.onSuccess {
+                statusMessage = "All artboards exported to print PDF"
+            }.onFailure {
+                statusMessage = "PDF export failed: ${it.message}"
+            }
+        }
+    }
+
+    val activePdfExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri: Uri? ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        PdfExporter.write(
+                            document = editorState.document,
+                            output = output,
+                            imageStore = imageStore,
+                            fontManager = fontManager,
+                            pageIndices = listOf(editorState.document.activePageIndex)
+                        )
+                    } ?: throw IllegalStateException("Cannot write PDF")
+                }
+            }.onSuccess {
+                statusMessage = "Active artboard exported to print PDF"
+            }.onFailure {
+                statusMessage = "PDF export failed: ${it.message}"
+            }
+        }
+    }
+
+    val pngExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/png")
+    ) { uri: Uri? ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        RasterExporter.write(
+                            document = editorState.document,
+                            output = output,
+                            imageStore = imageStore,
+                            fontManager = fontManager,
+                            format = RasterExporter.Format.PNG
+                        )
+                    } ?: throw IllegalStateException("Cannot write PNG")
+                }
+            }.onSuccess { result ->
+                statusMessage =
+                    "PNG exported: ${result.widthPx}×${result.heightPx}, " +
+                        "${result.effectiveDpi.toInt()} DPI"
+            }.onFailure {
+                statusMessage = "PNG export failed: ${it.message}"
+            }
+        }
+    }
+
+    val jpgExportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/jpeg")
+    ) { uri: Uri? ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        RasterExporter.write(
+                            document = editorState.document,
+                            output = output,
+                            imageStore = imageStore,
+                            fontManager = fontManager,
+                            format = RasterExporter.Format.JPEG,
+                            jpegQuality = 95
+                        )
+                    } ?: throw IllegalStateException("Cannot write JPG")
+                }
+            }.onSuccess { result ->
+                statusMessage =
+                    "JPG exported: ${result.widthPx}×${result.heightPx}, " +
+                        "${result.effectiveDpi.toInt()} DPI"
+            }.onFailure {
+                statusMessage = "JPG export failed: ${it.message}"
             }
         }
     }
@@ -174,6 +310,86 @@ fun CanvasScreen() {
         }
     }
 
+    val svgImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val name = queryDisplayName(context, uri) ?: "Imported SVG"
+                    val imported = context.contentResolver.openInputStream(uri)?.use { input ->
+                        SvgImporter.import(input, name)
+                    } ?: throw IllegalStateException("Cannot open SVG")
+                    name to imported
+                }
+            }.onSuccess { (name, imported) ->
+                val children = imported.activePage.layers
+                    .filter { it.visible }
+                    .flatMap { it.shapes }
+                    .filter { it.visible }
+                if (children.isEmpty()) {
+                    statusMessage = "SVG contains no supported objects"
+                } else {
+                    val bounds = com.drawit.core.geometry.Rect.unionAll(
+                        children.map { it.bounds() }
+                    )
+                    val page = editorState.document.activePage
+                    val viewportCenter = editorState.screenToDocument(
+                        com.drawit.core.geometry.Point(
+                            editorState.canvasSizePx.x / 2f,
+                            editorState.canvasSizePx.y / 2f
+                        )
+                    )
+                    val target = if (
+                        viewportCenter.x in 0f..page.width &&
+                        viewportCenter.y in 0f..page.height
+                    ) {
+                        viewportCenter
+                    } else {
+                        com.drawit.core.geometry.Point(page.width / 2f, page.height / 2f)
+                    }
+                    editorState.addShape(
+                        Shape.GroupShape(
+                            name = name.substringBeforeLast('.').ifBlank { "Imported SVG" },
+                            children = children,
+                            transform = Matrix.translate(
+                                target.x - bounds.centerX,
+                                target.y - bounds.centerY
+                            )
+                        )
+                    )
+                    statusMessage = "SVG imported: ${children.size} object(s)"
+                }
+            }.onFailure {
+                statusMessage = "SVG import failed: ${it.message}"
+            }
+        }
+    }
+
+    val patternImageOpenLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        imageStore.importImage(input)
+                    } ?: throw IllegalStateException("Cannot open image")
+                }
+            }.onSuccess { imageId ->
+                editorState.updateSelectedShapes("Pattern Image") { shape ->
+                    val pattern = shape.fill as? Fill.Pattern ?: Fill.Pattern(imageId = imageId)
+                    shape.withFill(pattern.copy(imageId = imageId))
+                }
+                statusMessage = "Pattern image selected"
+            }.onFailure {
+                statusMessage = "Pattern import: ${it.message}"
+            }
+        }
+    }
+
     // Font import
     val fontOpenLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -182,7 +398,11 @@ fun CanvasScreen() {
         scope.launch {
             runCatching {
                 val name = queryDisplayName(context, uri) ?: "font"
-                withContext(Dispatchers.IO) { context.contentResolver.openInputStream(uri)?.use { fontManager.importFont(it, name) } }
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use {
+                        fontManager.importFont(it, name)
+                    } ?: throw IllegalStateException("Cannot open font")
+                }
             }.onSuccess { statusMessage = "Font imported" }.onFailure { statusMessage = "Font: ${it.message}" }
         }
     }
@@ -194,8 +414,8 @@ fun CanvasScreen() {
                 runCatching {
                     withContext(Dispatchers.IO) {
                         context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
-                            DrawItFile.write(editorState.document, out)
-                        }
+                            DrawItFile.write(editorState.document, out, imageStore, fontManager)
+                        } ?: throw IllegalStateException("Cannot write file")
                     }
                 }.onSuccess { statusMessage = "Saved" }
                     .onFailure { statusMessage = "Save failed: ${it.message}" }
@@ -207,21 +427,14 @@ fun CanvasScreen() {
 
     // ---- Color dialog wiring ----
 
-    colorDialogTarget?.let { target ->
+    colorDialogRequest?.let { request ->
         ColorDialog(
-            initial = colorDialogInitial,
-            title = if (target == ColorTarget.FILL) "Fill Color" else "Stroke Color",
-            onDismiss = { colorDialogTarget = null },
+            initial = request.initial,
+            title = request.title,
+            onDismiss = { colorDialogRequest = null },
             onConfirm = { color ->
-                when (target) {
-                    ColorTarget.FILL -> editorState.updateSelectedShapes("Fill Color") {
-                        it.withFill(Fill.Solid(color))
-                    }
-                    ColorTarget.STROKE -> editorState.updateSelectedShapes("Stroke Color") {
-                        it.withStroke((it.stroke ?: Stroke()).copy(color = color))
-                    }
-                }
-                colorDialogTarget = null
+                request.onConfirm(color)
+                colorDialogRequest = null
             }
         )
     }
@@ -268,6 +481,37 @@ fun CanvasScreen() {
                                 showMenu = false
                                 saveAsLauncher.launch("${editorState.document.name}.drawit")
                             })
+                            DropdownMenuItem(text = { Text("Export All Artboards PDF…") }, onClick = {
+                                showMenu = false
+                                pdfExportLauncher.launch("${editorState.document.name}.pdf")
+                            })
+                            DropdownMenuItem(text = { Text("Export Active Artboard PDF…") }, onClick = {
+                                showMenu = false
+                                val page = editorState.document.activePage
+                                activePdfExportLauncher.launch(
+                                    "${editorState.document.name}-${safeFileName(page.name)}.pdf"
+                                )
+                            })
+                            DropdownMenuItem(text = { Text("Export Active Artboard PNG…") }, onClick = {
+                                showMenu = false
+                                val page = editorState.document.activePage
+                                pngExportLauncher.launch(
+                                    "${editorState.document.name}-${safeFileName(page.name)}.png"
+                                )
+                            })
+                            DropdownMenuItem(text = { Text("Export Active Artboard JPG…") }, onClick = {
+                                showMenu = false
+                                val page = editorState.document.activePage
+                                jpgExportLauncher.launch(
+                                    "${editorState.document.name}-${safeFileName(page.name)}.jpg"
+                                )
+                            })
+                            DropdownMenuItem(text = { Text("Import SVG…") }, onClick = {
+                                showMenu = false
+                                svgImportLauncher.launch(
+                                    arrayOf("image/svg+xml", "application/xml", "text/xml")
+                                )
+                            })
                             DropdownMenuItem(text = { Text("Import Image…") }, onClick = {
                                 showMenu = false
                                 imageOpenLauncher.launch(arrayOf("image/*"))
@@ -276,6 +520,26 @@ fun CanvasScreen() {
                                 showMenu = false
                                 fontOpenLauncher.launch(arrayOf("*/*"))
                             })
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        if (editorState.smartAlignmentsEnabled) {
+                                            "Smart Alignments: On"
+                                        } else {
+                                            "Smart Alignments: Off"
+                                        }
+                                    )
+                                },
+                                onClick = {
+                                    editorState.smartAlignmentsEnabled =
+                                        !editorState.smartAlignmentsEnabled
+                                    statusMessage = if (editorState.smartAlignmentsEnabled) {
+                                        "Smart Alignments enabled"
+                                    } else {
+                                        "Smart Alignments disabled"
+                                    }
+                                }
+                            )
                         }
                     }
                 },
@@ -296,6 +560,11 @@ fun CanvasScreen() {
                             phoneSheet = if (phoneSheet == DockTab.PROPERTIES) null else DockTab.PROPERTIES
                         }) {
                             Icon(Icons.Default.Tune, "Properties")
+                        }
+                        IconButton(onClick = {
+                            phoneSheet = if (phoneSheet == DockTab.ARTBOARDS) null else DockTab.ARTBOARDS
+                        }) {
+                            Icon(Icons.Default.CropSquare, "Artboards")
                         }
                     }
                 }
@@ -318,6 +587,7 @@ fun CanvasScreen() {
                             view.imageStore = imageStore
                             view.fontManager = fontManager
                             editorState.documentVersion.let { view.invalidate() }
+                            editorState.viewportVersion.let { view.invalidate() }
                             // Keyboard for text editing
                             if (isEditingText) view.showKeyboard() else view.hideKeyboard()
                             editorState.pendingToolForCanvas?.let { tool ->
@@ -328,8 +598,12 @@ fun CanvasScreen() {
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Boolean ops bar (appears when 2+ shapes selected)
-                    if (editorState.canBoolean()) {
+                    // Context actions for grouping, PowerClip and boolean ops.
+                    if (editorState.canGroup() ||
+                        editorState.canUngroup() ||
+                        editorState.canPowerClip() ||
+                        editorState.canReleasePowerClip() ||
+                        editorState.canBoolean()) {
                         Row(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
@@ -338,14 +612,40 @@ fun CanvasScreen() {
                                     MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
                                     shape = MaterialTheme.shapes.medium
                                 )
+                                .horizontalScroll(rememberScrollState())
                                 .padding(horizontal = 8.dp, vertical = 2.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            BooleanOps.Op.entries.forEach { op ->
+                            if (editorState.canGroup()) {
                                 androidx.compose.material3.TextButton(
-                                    onClick = { editorState.combineSelected(op) }
-                                ) {
-                                    Text(op.displayName, style = MaterialTheme.typography.labelMedium)
+                                    onClick = { editorState.groupSelected() }
+                                ) { Text("Group") }
+                            }
+                            if (editorState.canUngroup()) {
+                                androidx.compose.material3.TextButton(
+                                    onClick = { editorState.ungroupSelected() }
+                                ) { Text("Ungroup") }
+                            }
+                            if (editorState.canPowerClip()) {
+                                androidx.compose.material3.TextButton(
+                                    onClick = { editorState.createPowerClip() }
+                                ) { Text("PowerClip") }
+                            }
+                            if (editorState.canReleasePowerClip()) {
+                                androidx.compose.material3.TextButton(
+                                    onClick = { editorState.releasePowerClip() }
+                                ) { Text("Release Clip") }
+                            }
+                            if (editorState.canBoolean()) {
+                                BooleanOps.Op.entries.forEach { op ->
+                                    androidx.compose.material3.TextButton(
+                                        onClick = { editorState.combineSelected(op) }
+                                    ) {
+                                        Text(
+                                            op.displayName,
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -376,8 +676,8 @@ fun CanvasScreen() {
                     ToolBar(
                         editorState = editorState,
                         textEngine = textEngine,
-                        isEditingText = { isEditingText },
                         onEditingTextChanged = { isEditingText = it },
+                        onStatusMessage = { statusMessage = it },
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
@@ -404,14 +704,26 @@ fun CanvasScreen() {
                                 onClick = { dockTab = DockTab.PROPERTIES },
                                 text = { Text("Properties") }
                             )
+                            Tab(
+                                selected = dockTab == DockTab.ARTBOARDS,
+                                onClick = { dockTab = DockTab.ARTBOARDS },
+                                text = { Text("Artboards") }
+                            )
                         }
                         when (dockTab) {
                             DockTab.OBJECTS -> ObjectManagerPanel(editorState)
                             DockTab.PROPERTIES -> PropertiesPanel(
                                 editorState = editorState,
-                                onPickFillColor = { c -> colorDialogInitial = c; colorDialogTarget = ColorTarget.FILL },
-                                onPickStrokeColor = { c -> colorDialogInitial = c; colorDialogTarget = ColorTarget.STROKE }
+                                fontManager = fontManager,
+                                textEngine = textEngine,
+                                onPickColor = { title, initial, onSelected ->
+                                    colorDialogRequest = ColorDialogRequest(title, initial, onSelected)
+                                },
+                                onPickPatternImage = {
+                                    patternImageOpenLauncher.launch(arrayOf("image/*"))
+                                }
                             )
+                            DockTab.ARTBOARDS -> ArtboardsPanel(editorState)
                         }
                     }
                 }
@@ -425,9 +737,16 @@ fun CanvasScreen() {
                     DockTab.OBJECTS -> ObjectManagerPanel(editorState)
                     DockTab.PROPERTIES -> PropertiesPanel(
                         editorState = editorState,
-                        onPickFillColor = { colorDialogTarget = ColorTarget.FILL },
-                        onPickStrokeColor = { colorDialogTarget = ColorTarget.STROKE }
+                        fontManager = fontManager,
+                        textEngine = textEngine,
+                        onPickColor = { title, initial, onSelected ->
+                            colorDialogRequest = ColorDialogRequest(title, initial, onSelected)
+                        },
+                        onPickPatternImage = {
+                            patternImageOpenLauncher.launch(arrayOf("image/*"))
+                        }
                     )
+                    DockTab.ARTBOARDS -> ArtboardsPanel(editorState)
                 }
             }
         }
@@ -438,8 +757,8 @@ fun CanvasScreen() {
 private fun ToolBar(
     editorState: EditorState,
     textEngine: TextEngine,
-    isEditingText: () -> Boolean,
     onEditingTextChanged: (Boolean) -> Unit,
+    onStatusMessage: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val toolHolder = remember { ToolHolder() }
@@ -450,6 +769,7 @@ private fun ToolBar(
                 MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
                 shape = MaterialTheme.shapes.large
             )
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
@@ -457,6 +777,18 @@ private fun ToolBar(
             selected = toolHolder.activeToolId == "select", contentDescription = "Select") {
             toolHolder.activeToolId = "select"
             toolHolder.pendingTool = SelectTool(editorState)
+        }
+        ToolButton(icon = { Icon(Icons.Default.Create, "Node Editor") },
+            selected = toolHolder.activeToolId == "node", contentDescription = "Node Editor") {
+            onStatusMessage(
+                if (editorState.selectedShapes().size == 1) {
+                    "Node Editor converts the selected object to curves. Drag nodes; Delete removes one; Undo restores it."
+                } else {
+                    "Node Editor: select exactly one object first."
+                }
+            )
+            toolHolder.activeToolId = "node"
+            toolHolder.pendingTool = NodeEditTool(editorState, textEngine)
         }
         ToolButton(icon = { Icon(Icons.Default.Brush, "Freehand") },
             selected = toolHolder.activeToolId == "pen", contentDescription = "Freehand Pen") {
@@ -477,6 +809,11 @@ private fun ToolBar(
             selected = toolHolder.activeToolId == "ellipse", contentDescription = "Ellipse") {
             toolHolder.activeToolId = "ellipse"
             toolHolder.pendingTool = ShapeTool(editorState, ShapeTool.Mode.ELLIPSE)
+        }
+        ToolButton(icon = { Icon(Icons.Default.ChangeHistory, "Polygon") },
+            selected = toolHolder.activeToolId == "polygon", contentDescription = "Polygon") {
+            toolHolder.activeToolId = "polygon"
+            toolHolder.pendingTool = ShapeTool(editorState, ShapeTool.Mode.POLYGON)
         }
         ToolButton(icon = { Icon(Icons.Default.TextFields, "Text") },
             selected = toolHolder.activeToolId == "text", contentDescription = "Text") {
@@ -508,6 +845,17 @@ private fun ToolBar(
                 contentColor = MaterialTheme.colorScheme.onSurface
             )
         ) { Icon(Icons.Default.ZoomInMap, "Zoom to Fit") }
+
+        androidx.compose.material3.TextButton(
+            onClick = { editorState.zoomTo100Percent() }
+        ) {
+            Text("100%")
+        }
+        androidx.compose.material3.TextButton(
+            onClick = { editorState.centerSelectionOrArtboard() }
+        ) {
+            Text("Center")
+        }
     }
 
     toolHolder.pendingTool?.let { tool ->
@@ -539,6 +887,9 @@ private class ToolHolder {
     var activeToolId by mutableStateOf("select")
     var pendingTool: com.drawit.core.input.Tool? = null
 }
+
+private fun safeFileName(value: String): String =
+    value.replace(Regex("""[\\/:*?"<>|]"""), "_").trim().ifBlank { "Artboard" }
 
 private fun queryDisplayName(context: android.content.Context, uri: Uri): String? =
     runCatching {

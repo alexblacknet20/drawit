@@ -2,6 +2,7 @@ package com.drawit.text
 
 import android.content.Context
 import android.graphics.Typeface
+import android.os.Build
 import java.io.File
 import java.io.InputStream
 
@@ -53,14 +54,26 @@ class FontManager(private val context: Context) {
 
     // ---------- Resolution ----------
 
-    fun typefaceFor(key: String): Typeface {
-        typefaceCache[key]?.let { return it }
-        val tf = resolve(key)
-        typefaceCache[key] = tf
-        return tf
+    fun typefaceFor(key: String, weight: Int = 400, italic: Boolean = false): Typeface {
+        val cacheKey = "$key|${weight.coerceIn(1, 1000)}|$italic"
+        typefaceCache[cacheKey]?.let { return it }
+        val base = resolveBase(key)
+        val typeface = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Typeface.create(base, weight.coerceIn(1, 1000), italic)
+        } else {
+            val style = when {
+                weight >= 600 && italic -> Typeface.BOLD_ITALIC
+                weight >= 600 -> Typeface.BOLD
+                italic -> Typeface.ITALIC
+                else -> Typeface.NORMAL
+            }
+            Typeface.create(base, style)
+        }
+        typefaceCache[cacheKey] = typeface
+        return typeface
     }
 
-    private fun resolve(key: String): Typeface = when {
+    private fun resolveBase(key: String): Typeface = when {
         key.startsWith("bundled:") -> runCatching {
             Typeface.createFromAsset(context.assets, "fonts/${key.removePrefix("bundled:")}.ttf")
         }.getOrElse {
@@ -83,12 +96,15 @@ class FontManager(private val context: Context) {
     /** Import a TTF/OTF from a stream. Returns the font key. */
     fun importFont(input: InputStream, fileName: String): String {
         val safe = fileName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        require(safe.substringAfterLast('.', "").lowercase() in setOf("ttf", "otf")) {
+            "Only TTF and OTF fonts are supported"
+        }
         val out = File(importedDir, safe)
         out.outputStream().use { input.copyTo(it) }
         // Validate it loads
         runCatching { Typeface.createFromFile(out) }
             .onFailure { out.delete(); throw IllegalArgumentException("Not a valid font file") }
-        typefaceCache.remove("imported:$safe")
+        typefaceCache.keys.removeAll { it.startsWith("imported:$safe|") }
         return "imported:$safe"
     }
 
@@ -103,8 +119,13 @@ class FontManager(private val context: Context) {
     fun restoreEmbeddedFont(fileName: String, bytes: ByteArray): String {
         val safe = fileName.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val out = File(importedDir, safe)
-        if (!out.exists()) out.writeBytes(bytes)
-        typefaceCache.remove("imported:$safe")
+        out.writeBytes(bytes)
+        runCatching { Typeface.createFromFile(out) }
+            .onFailure {
+                out.delete()
+                throw IllegalArgumentException("Embedded font is invalid")
+            }
+        typefaceCache.keys.removeAll { it.startsWith("imported:$safe|") }
         return "imported:$safe"
     }
 

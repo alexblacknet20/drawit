@@ -68,6 +68,12 @@ fun ObjectManagerPanel(
                             if (additive) (if (id in cur) cur - id else cur + id) else setOf(id)
                         )
                     },
+                    onToggleShapeVisible = { shape ->
+                        editorState.setShapeVisible(shape.id, !shape.visible)
+                    },
+                    onToggleShapeLock = { shape ->
+                        editorState.setShapeLocked(shape.id, !shape.locked)
+                    },
                     onRaise = { id -> editorState.moveShapeInLayer(id, +1) },
                     onLower = { id -> editorState.moveShapeInLayer(id, -1) }
                 )
@@ -85,6 +91,8 @@ private fun LayerBlock(
     onToggleVisible: () -> Unit,
     onToggleLock: () -> Unit,
     onSelectShape: (String, Boolean) -> Unit,
+    onToggleShapeVisible: (Shape) -> Unit,
+    onToggleShapeLock: (Shape) -> Unit,
     onRaise: (String) -> Unit,
     onLower: (String) -> Unit
 ) {
@@ -137,6 +145,8 @@ private fun LayerBlock(
                     shape = shape,
                     selected = shape.id in selectedIds,
                     onSelect = { additive -> onSelectShape(shape.id, additive) },
+                    onToggleVisible = { onToggleShapeVisible(shape) },
+                    onToggleLock = { onToggleShapeLock(shape) },
                     onRaise = { onRaise(shape.id) },
                     onLower = { onLower(shape.id) }
                 )
@@ -150,33 +160,69 @@ private fun ShapeRow(
     shape: Shape,
     selected: Boolean,
     onSelect: (Boolean) -> Unit,
+    onToggleVisible: () -> Unit,
+    onToggleLock: () -> Unit,
     onRaise: () -> Unit,
     onLower: () -> Unit
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 32.dp)
-            .clickable { onSelect(false) }
-            .padding(vertical = 2.dp)
-    ) {
-        Text(
-            shape.name,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (selected) MaterialTheme.colorScheme.primary
-            else if (!shape.visible) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-            else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        if (selected) {
-            IconButton(onClick = onRaise, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.KeyboardArrowUp, "Raise", modifier = Modifier.size(16.dp))
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 32.dp)
+                .clickable { onSelect(false) }
+                .padding(vertical = 2.dp)
+        ) {
+            IconButton(onClick = onToggleVisible, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    if (shape.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                    "Object visibility",
+                    modifier = Modifier.size(15.dp),
+                    tint = if (shape.visible) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                )
             }
-            IconButton(onClick = onLower, modifier = Modifier.size(24.dp)) {
-                Icon(Icons.Default.KeyboardArrowDown, "Lower", modifier = Modifier.size(16.dp))
+            IconButton(onClick = onToggleLock, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    Icons.Default.Lock,
+                    "Object lock",
+                    modifier = Modifier.size(14.dp),
+                    tint = if (shape.locked) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+                )
+            }
+            Text(
+                shape.name,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (selected) MaterialTheme.colorScheme.primary
+                else if (!shape.visible) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            if (selected) {
+                IconButton(onClick = onRaise, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.KeyboardArrowUp, "Raise", modifier = Modifier.size(16.dp))
+                }
+                IconButton(onClick = onLower, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.KeyboardArrowDown, "Lower", modifier = Modifier.size(16.dp))
+                }
+            }
+        }
+        if (shape is Shape.GroupShape) {
+            shape.children.asReversed().forEach { child ->
+                Text(
+                    text = "↳ ${child.name}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 84.dp, top = 1.dp, bottom = 1.dp)
+                )
             }
         }
     }

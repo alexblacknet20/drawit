@@ -20,6 +20,8 @@ data class TextShape(
     val text: String = "",
     val kind: Kind = Kind.ARTISTIC,
     val fontFamily: String = "sans-serif",   // FontManager key
+    val fontWeight: Weight = Weight.REGULAR,
+    val italic: Boolean = false,
     val textSize: Float = 12f,               // mm
     val frameWidth: Float = 0f,              // paragraph only (mm)
     val align: Align = Align.LEFT,
@@ -32,11 +34,20 @@ data class TextShape(
     override val visible: Boolean = true,
     override val locked: Boolean = false,
     override val opacity: Float = 1f,
-    override val blendMode: BlendMode = BlendMode.NORMAL
+    override val blendMode: BlendMode = BlendMode.NORMAL,
+    override val effects: EffectStack = EffectStack()
 ) : Shape() {
 
     enum class Kind { ARTISTIC, PARAGRAPH }
     enum class Align(val displayName: String) { LEFT("Left"), CENTER("Center"), RIGHT("Right") }
+    enum class Weight(val value: Int, val displayName: String) {
+        LIGHT(300, "Light"),
+        REGULAR(400, "Regular"),
+        MEDIUM(500, "Medium"),
+        SEMIBOLD(600, "Semi Bold"),
+        BOLD(700, "Bold"),
+        BLACK(900, "Black")
+    }
 
     override fun localBounds(): Rect = measuredBounds
     override fun localPath(): PathData = PathData.EMPTY // text outlines via FontManager when needed
@@ -44,10 +55,10 @@ data class TextShape(
     override fun copyWith(
         id: String, name: String, transform: Matrix, fill: Fill,
         stroke: Stroke?, visible: Boolean, locked: Boolean,
-        opacity: Float, blendMode: BlendMode
+        opacity: Float, blendMode: BlendMode, effects: EffectStack
     ) = copy(
         id = id, name = name, transform = transform, fill = fill,
         stroke = stroke, visible = visible, locked = locked,
-        opacity = opacity, blendMode = blendMode
+        opacity = opacity, blendMode = blendMode, effects = effects
     )
 }

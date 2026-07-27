@@ -3,7 +3,9 @@ package com.drawit.file
 import com.drawit.core.color.Color
 import com.drawit.core.document.BlendMode
 import com.drawit.core.document.ColorMode
+import com.drawit.core.document.CornerStyle
 import com.drawit.core.document.Document
+import com.drawit.core.document.EffectStack
 import com.drawit.core.document.Fill
 import com.drawit.core.document.GradientStop
 import com.drawit.core.document.ImageShape
@@ -11,6 +13,7 @@ import com.drawit.core.document.Layer
 import com.drawit.core.document.Margins
 import com.drawit.core.document.Page
 import com.drawit.core.document.Shape
+import com.drawit.core.document.ShadowEffect
 import com.drawit.core.document.Stroke
 import com.drawit.core.document.TextShape
 import com.drawit.core.document.Unit
@@ -28,7 +31,7 @@ import org.json.JSONObject
  */
 object DocumentSerializer {
 
-    const val FORMAT_VERSION = 2
+    const val FORMAT_VERSION = 5
 
     // ============================== WRITE ==============================
 
@@ -71,6 +74,7 @@ object DocumentSerializer {
             is Shape.PathShape -> "path"
             is Shape.RectShape -> "rect"
             is Shape.EllipseShape -> "ellipse"
+            is Shape.PolygonShape -> "polygon"
             is Shape.GroupShape -> "group"
             is ImageShape -> "image"
             is TextShape -> "text"
@@ -84,19 +88,36 @@ object DocumentSerializer {
         put("locked", shape.locked)
         put("opacity", shape.opacity.toDouble())
         put("blendMode", shape.blendMode.name)
+        put("effects", effectsToJson(shape.effects))
         when (shape) {
             is Shape.PathShape -> put("pathData", pathDataToJson(shape.pathData))
             is Shape.RectShape -> {
                 put("rect", rectToJson(shape.rect))
                 put("cornerRadius", shape.cornerRadius.toDouble())
+                put("cornerStyle", shape.cornerStyle.name)
             }
-            is Shape.EllipseShape -> put("rect", rectToJson(shape.rect))
-            is Shape.GroupShape -> put("children",
-                JSONArray().apply { shape.children.forEach { put(shapeToJson(it)) } })
+            is Shape.EllipseShape -> {
+                put("rect", rectToJson(shape.rect))
+                put("startAngleDegrees", shape.startAngleDegrees.toDouble())
+                put("sweepDegrees", shape.sweepDegrees.toDouble())
+                put("arcRatio", shape.arcRatio.toDouble())
+            }
+            is Shape.PolygonShape -> {
+                put("rect", rectToJson(shape.rect))
+                put("sides", shape.sides)
+                put("rotationDegrees", shape.rotationDegrees.toDouble())
+            }
+            is Shape.GroupShape -> {
+                put("children",
+                    JSONArray().apply { shape.children.forEach { put(shapeToJson(it)) } })
+                put("clipPath", shape.clipPath?.let { pathDataToJson(it) } ?: JSONObject.NULL)
+            }
             is TextShape -> {
                 put("text", shape.text)
                 put("kind", shape.kind.name)
                 put("fontFamily", shape.fontFamily)
+                put("fontWeight", shape.fontWeight.name)
+                put("italic", shape.italic)
                 put("textSize", shape.textSize.toDouble())
                 put("frameWidth", shape.frameWidth.toDouble())
                 put("align", shape.align.name)
@@ -143,6 +164,21 @@ object DocumentSerializer {
         put("join", s.join.name)
         put("miterLimit", s.miterLimit.toDouble())
         put("dash", JSONArray().apply { s.dashPattern.forEach { put(it.toDouble()) } })
+    }
+
+    private fun effectsToJson(effects: EffectStack): JSONObject = JSONObject().apply {
+        put("dropShadow", effects.dropShadow?.let(::shadowToJson) ?: JSONObject.NULL)
+        put("edgeBlurRadius", effects.edgeBlurRadius.toDouble())
+        put("innerShadow", effects.innerShadow?.let(::shadowToJson) ?: JSONObject.NULL)
+        put("noiseAmount", effects.noiseAmount.toDouble())
+    }
+
+    private fun shadowToJson(shadow: ShadowEffect): JSONObject = JSONObject().apply {
+        put("offsetX", shadow.offsetX.toDouble())
+        put("offsetY", shadow.offsetY.toDouble())
+        put("blurRadius", shadow.blurRadius.toDouble())
+        put("color", shadow.color.toHexString(includeAlpha = true))
+        put("opacity", shadow.opacity.toDouble())
     }
 
     private fun pathDataToJson(path: PathData): JSONObject = JSONObject().apply {
@@ -223,13 +259,15 @@ object DocumentSerializer {
             visible = j.optBoolean("visible", true),
             locked = j.optBoolean("locked", false),
             opacity = j.optDouble("opacity", 1.0).toFloat(),
-            blendMode = BlendMode.fromName(j.optString("blendMode", "NORMAL"))
+            blendMode = BlendMode.fromName(j.optString("blendMode", "NORMAL")),
+            effects = j.optJSONObject("effects")?.let(::effectsFromJson) ?: EffectStack()
         )
         return when (j.getString("type")) {
             "path" -> Shape.PathShape(
                 id = common.id, name = common.name, transform = common.transform,
                 fill = common.fill, stroke = common.stroke, visible = common.visible,
                 locked = common.locked, opacity = common.opacity, blendMode = common.blendMode,
+                effects = common.effects,
                 pathData = pathDataFromJson(j.getJSONObject("pathData"))
             )
             "rect" -> Shape.RectShape(
@@ -237,27 +275,57 @@ object DocumentSerializer {
                 fill = common.fill, stroke = common.stroke, visible = common.visible,
                 locked = common.locked, opacity = common.opacity, blendMode = common.blendMode,
                 rect = rectFromJson(j.getJSONObject("rect")),
-                cornerRadius = j.optDouble("cornerRadius", 0.0).toFloat()
+                effects = common.effects,
+                cornerRadius = j.optDouble("cornerRadius", 0.0).toFloat(),
+                cornerStyle = runCatching {
+                    CornerStyle.valueOf(j.optString("cornerStyle", "ROUND"))
+                }.getOrDefault(CornerStyle.ROUND)
             )
             "ellipse" -> Shape.EllipseShape(
                 id = common.id, name = common.name, transform = common.transform,
                 fill = common.fill, stroke = common.stroke, visible = common.visible,
                 locked = common.locked, opacity = common.opacity, blendMode = common.blendMode,
-                rect = rectFromJson(j.getJSONObject("rect"))
+                effects = common.effects,
+                rect = rectFromJson(j.getJSONObject("rect")),
+                startAngleDegrees = j.optDouble("startAngleDegrees", 0.0).toFloat(),
+                sweepDegrees = j.optDouble("sweepDegrees", 360.0)
+                    .toFloat().coerceIn(0.1f, 360f),
+                arcRatio = j.optDouble("arcRatio", 0.0)
+                    .toFloat().coerceIn(0f, 0.95f)
+            )
+            "polygon" -> Shape.PolygonShape(
+                id = common.id, name = common.name, transform = common.transform,
+                fill = common.fill, stroke = common.stroke, visible = common.visible,
+                locked = common.locked, opacity = common.opacity, blendMode = common.blendMode,
+                rect = rectFromJson(j.getJSONObject("rect")),
+                effects = common.effects,
+                sides = j.optInt("sides", 5).coerceIn(3, 64),
+                rotationDegrees = j.optDouble("rotationDegrees", -90.0).toFloat()
             )
             "group" -> Shape.GroupShape(
                 id = common.id, name = common.name, transform = common.transform,
                 fill = common.fill, stroke = common.stroke, visible = common.visible,
                 locked = common.locked, opacity = common.opacity, blendMode = common.blendMode,
-                children = jsonArrayToList(j.getJSONArray("children")) { shapeFromJson(it) }
+                children = jsonArrayToList(j.getJSONArray("children")) { shapeFromJson(it) },
+                effects = common.effects,
+                clipPath = if (j.isNull("clipPath")) {
+                    null
+                } else {
+                    j.optJSONObject("clipPath")?.let { pathDataFromJson(it) }
+                }
             )
             "text" -> TextShape(
                 id = common.id, name = common.name, transform = common.transform,
                 fill = common.fill, stroke = common.stroke, visible = common.visible,
                 locked = common.locked, opacity = common.opacity, blendMode = common.blendMode,
+                effects = common.effects,
                 text = j.optString("text", ""),
                 kind = runCatching { TextShape.Kind.valueOf(j.optString("kind","ARTISTIC")) }.getOrDefault(TextShape.Kind.ARTISTIC),
                 fontFamily = j.optString("fontFamily", "sans-serif"),
+                fontWeight = runCatching {
+                    TextShape.Weight.valueOf(j.optString("fontWeight", "REGULAR"))
+                }.getOrDefault(TextShape.Weight.REGULAR),
+                italic = j.optBoolean("italic", false),
                 textSize = j.optDouble("textSize", 12.0).toFloat(),
                 frameWidth = j.optDouble("frameWidth", 0.0).toFloat(),
                 align = runCatching { TextShape.Align.valueOf(j.optString("align","LEFT")) }.getOrDefault(TextShape.Align.LEFT),
@@ -268,6 +336,7 @@ object DocumentSerializer {
                 id = common.id, name = common.name, transform = common.transform,
                 fill = common.fill, stroke = common.stroke, visible = common.visible,
                 locked = common.locked, opacity = common.opacity, blendMode = common.blendMode,
+                effects = common.effects,
                 imageId = j.optString("imageId", ""),
                 rect = j.optJSONObject("rect")?.let { rectFromJson(it) } ?: com.drawit.core.geometry.Rect.EMPTY
             )
@@ -278,7 +347,7 @@ object DocumentSerializer {
     private data class ShapeCommon(
         val id: String, val name: String, val transform: Matrix, val fill: Fill,
         val stroke: Stroke?, val visible: Boolean, val locked: Boolean,
-        val opacity: Float, val blendMode: BlendMode
+        val opacity: Float, val blendMode: BlendMode, val effects: EffectStack
     )
 
     private fun matrixFromJson(a: JSONArray): Matrix = Matrix(
@@ -321,6 +390,23 @@ object DocumentSerializer {
         dashPattern = j.optJSONArray("dash")?.let { arr ->
             (0 until arr.length()).map { arr.getDouble(it).toFloat() }
         } ?: emptyList()
+    )
+
+    private fun effectsFromJson(j: JSONObject): EffectStack = EffectStack(
+        dropShadow = j.optJSONObject("dropShadow")?.let(::shadowFromJson),
+        edgeBlurRadius = j.optDouble("edgeBlurRadius", 0.0).toFloat().coerceAtLeast(0f),
+        innerShadow = j.optJSONObject("innerShadow")?.let(::shadowFromJson),
+        noiseAmount = j.optDouble("noiseAmount", 0.0).toFloat().coerceIn(0f, 1f)
+    )
+
+    private fun shadowFromJson(j: JSONObject): ShadowEffect = ShadowEffect(
+        offsetX = j.optDouble("offsetX", 2.0).toFloat(),
+        offsetY = j.optDouble("offsetY", 2.0).toFloat(),
+        blurRadius = j.optDouble("blurRadius", 3.0).toFloat().coerceAtLeast(0f),
+        color = runCatching {
+            Color.fromHex(j.optString("color", "#FF000000"))
+        }.getOrDefault(Color.BLACK),
+        opacity = j.optDouble("opacity", 0.45).toFloat().coerceIn(0f, 1f)
     )
 
     private fun pathDataFromJson(j: JSONObject): PathData {
