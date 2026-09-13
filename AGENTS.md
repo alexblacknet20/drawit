@@ -20,9 +20,13 @@ AGP 8.2.2 · Kotlin 1.9.22 · Gradle 8.4 · minSdk 26 / target 34.
 ./gradlew testDebugUnitTest    # all JVM unit tests (~1 min)
 ./gradlew testDebugUnitTest --tests "com.drawit.core.undo.UndoManagerTest"   # single class
 ./gradlew installDebug         # install to connected device
+./gradlew ktlintCheck          # lint Kotlin sources + .kts (ktlint 1.2.1)
+./gradlew ktlintFormat         # auto-fix what ktlint can
 ```
 
-No lint/ktlint/CI configuration exists — `testDebugUnitTest` is the only automated gate.
+ktlint style comes from `.editorconfig` (`intellij_idea` code style, trailing commas required,
+Compose functions exempt from function naming). No CI — `ktlintCheck` and `testDebugUnitTest`
+are the automated gates.
 
 ## Architecture (source: `app/src/main/kotlin/com/drawit/`)
 
