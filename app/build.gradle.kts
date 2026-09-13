@@ -1,6 +1,12 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jlleitschuh.gradle.ktlint")
+}
+
+// Keep in sync with the ktlint CLI used by the format-on-edit hook (.claude/settings.json).
+ktlint {
+    version.set("1.2.1")
 }
 
 android {

@@ -3,29 +3,26 @@
 Android vector graphics editor. Single module (`:app`), Kotlin + Jetpack Compose.
 AGP 8.2.2 · Kotlin 1.9.22 · Gradle 8.4 · minSdk 26 / target 34.
 
-## Toolchain: fully self-contained, do not "fix"
+## Toolchain (Linux)
 
-- Everything lives in `.tooling/` (gitignored): JDK 17, Android SDK, Gradle home, downloads.
-- `gradlew.bat` is **locally rewritten** (uncommitted change): it defaults `JAVA_HOME` to
-  `.tooling\jdk` and `GRADLE_USER_HOME` to `.tooling\gradle-home`. No system Java/SDK or env
-  vars needed. Do not restore the stock wrapper script.
-- `local.properties` points `sdk.dir` at `.tooling/android-sdk`.
+- **JDK 17 is required** (matches `jvmTarget`). Gradle 8.4 / AGP 8.2.2 don't support running on
+  newer JDKs such as a system JDK 25, so point `JAVA_HOME` at a JDK 17 when invoking Gradle.
+- **Android SDK with platform 34**: set `sdk.dir` in `local.properties` (gitignored), or
+  `ANDROID_HOME`.
 - `settings.gradle.kts` references a Termux path (`/data/data/com.termux/.../m2repo`) — kept
-  for on-device ARM64 builds (aapt2 workaround). Harmless on desktop; builds verified working
-  with it present. Leave it alone.
+  for on-device ARM64 builds (aapt2 workaround). Harmless on desktop. Leave it alone.
 - `org.gradle.parallel=false` in `gradle.properties` is deliberate.
 
-## Commands (Windows; use `gradlew.bat`, not `gradlew`)
+## Commands
 
-```powershell
-.\gradlew.bat assembleDebug        # build APK
-.\gradlew.bat testDebugUnitTest    # all JVM unit tests (~1 min)
-.\gradlew.bat testDebugUnitTest --tests "com.drawit.core.undo.UndoManagerTest"   # single class
-.\gradlew.bat installDebug         # install to connected device
+```bash
+./gradlew assembleDebug        # build APK
+./gradlew testDebugUnitTest    # all JVM unit tests (~1 min)
+./gradlew testDebugUnitTest --tests "com.drawit.core.undo.UndoManagerTest"   # single class
+./gradlew installDebug         # install to connected device
 ```
 
 No lint/ktlint/CI configuration exists — `testDebugUnitTest` is the only automated gate.
-Verified green as of this writing.
 
 ## Architecture (source: `app/src/main/kotlin/com/drawit/`)
 
@@ -46,8 +43,9 @@ Package root is `com.drawit`; applicationId is `com.drawit.app`. Single activity
 
 Key invariants:
 1. Document model is immutable; edits produce a new `Document`.
-2. Undo = snapshot swap (`SnapshotCommand`) via `UndoManager` (bounded, `mergeWith` coalesces
-   continuous drags into one step).
+2. Undo = snapshot swap (`SnapshotCommand`) via `UndoManager` (bounded to 100). No command
+   overrides `mergeWith`; drags stay one undo step because tools preview with
+   `EditorState.setDocumentForDrag` (no undo) and commit a single `applyEdit` on gesture end.
 3. Rendering goes through `IRenderer` so the backend can be swapped later.
 
 ## Testing notes

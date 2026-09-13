@@ -9,9 +9,11 @@ import android.graphics.LinearGradient
 import android.graphics.Matrix as AndroidMatrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import com.drawit.core.color.Color
+import com.drawit.core.document.BlendMode
 import com.drawit.core.document.Document
 import com.drawit.core.document.Fill
 import com.drawit.core.document.GradientStop
@@ -673,4 +675,14 @@ class SkiaRenderer(
     }
 
     private fun Rect.toAndroidRect() = android.graphics.RectF(left, top, right, bottom)
+
+    /** Map to Android PorterDuff for Skia rendering (works on all API levels). */
+    private fun BlendMode.toPorterDuff(): PorterDuff.Mode = when (this) {
+        BlendMode.NORMAL -> PorterDuff.Mode.SRC_OVER
+        BlendMode.MULTIPLY -> PorterDuff.Mode.MULTIPLY
+        BlendMode.SCREEN -> PorterDuff.Mode.SCREEN
+        BlendMode.OVERLAY -> PorterDuff.Mode.OVERLAY
+        BlendMode.DARKEN -> PorterDuff.Mode.DARKEN
+        BlendMode.LIGHTEN -> PorterDuff.Mode.LIGHTEN
+    }
 }
