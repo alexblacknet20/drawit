@@ -23,7 +23,7 @@ class ShapeTool(
     private val fillColor: Color = Color(0, 120, 215, 60),
     private val strokeColor: Color = Color(0, 120, 215),
     private val strokeWidth: Float = 0.5f,
-    private val polygonSides: Int = 5
+    private val polygonSides: Int = 5,
 ) : Tool {
 
     override val isConstrainableGestureActive: Boolean
@@ -104,7 +104,7 @@ class ShapeTool(
 
     private fun computeRect(
         start: com.drawit.core.geometry.Point,
-        current: com.drawit.core.geometry.Point
+        current: com.drawit.core.geometry.Point,
     ): Rect {
         if (!constrainSquare) return Rect.fromPoints(start, current)
         // Constrain to square: use the larger dimension
@@ -115,8 +115,8 @@ class ShapeTool(
             start,
             com.drawit.core.geometry.Point(
                 start.x + size * if (dx >= 0) 1f else -1f,
-                start.y + size * if (dy >= 0) 1f else -1f
-            )
+                start.y + size * if (dy >= 0) 1f else -1f,
+            ),
         )
     }
 
@@ -125,18 +125,18 @@ class ShapeTool(
             Mode.RECTANGLE -> Shape.RectShape(
                 rect = rect,
                 fill = Fill.Solid(fillColor),
-                stroke = Stroke(color = strokeColor, width = strokeWidth)
+                stroke = Stroke(color = strokeColor, width = strokeWidth),
             )
             Mode.ELLIPSE -> Shape.EllipseShape(
                 rect = rect,
                 fill = Fill.Solid(fillColor),
-                stroke = Stroke(color = strokeColor, width = strokeWidth)
+                stroke = Stroke(color = strokeColor, width = strokeWidth),
             )
             Mode.POLYGON -> Shape.PolygonShape(
                 rect = rect,
                 sides = polygonSides.coerceIn(3, 64),
                 fill = Fill.Solid(fillColor),
-                stroke = Stroke(color = strokeColor, width = strokeWidth)
+                stroke = Stroke(color = strokeColor, width = strokeWidth),
             )
         }
         state.addShape(shape)
@@ -219,11 +219,14 @@ class ShapeTool(
                     val point = context.documentToScreen(
                         Point(
                             rect.centerX + kotlin.math.cos(angle).toFloat() * rect.width / 2f,
-                            rect.centerY + kotlin.math.sin(angle).toFloat() * rect.height / 2f
-                        )
+                            rect.centerY + kotlin.math.sin(angle).toFloat() * rect.height / 2f,
+                        ),
                     )
-                    if (index == 0) path.moveTo(point.x, point.y)
-                    else path.lineTo(point.x, point.y)
+                    if (index == 0) {
+                        path.moveTo(point.x, point.y)
+                    } else {
+                        path.lineTo(point.x, point.y)
+                    }
                 }
                 path.close()
                 c.drawPath(path, fillPaint)

@@ -7,7 +7,7 @@ data class Rect(
     val left: Float = 0f,
     val top: Float = 0f,
     val right: Float = 0f,
-    val bottom: Float = 0f
+    val bottom: Float = 0f,
 ) {
     val width: Float get() = right - left
     val height: Float get() = bottom - top
@@ -26,17 +26,17 @@ data class Rect(
 
     fun contains(other: Rect): Boolean =
         other.left >= left && other.right <= right &&
-        other.top >= top && other.bottom <= bottom
+            other.top >= top && other.bottom <= bottom
 
     fun intersects(other: Rect): Boolean =
         left < other.right && right > other.left &&
-        top < other.bottom && bottom > other.top
+            top < other.bottom && bottom > other.top
 
     fun union(other: Rect): Rect = Rect(
         left = minOf(left, other.left),
         top = minOf(top, other.top),
         right = maxOf(right, other.right),
-        bottom = maxOf(bottom, other.bottom)
+        bottom = maxOf(bottom, other.bottom),
     )
 
     fun intersect(other: Rect): Rect? {
@@ -59,8 +59,10 @@ data class Rect(
         val t = pivot.y + (top - pivot.y) * sy
         val b = pivot.y + (bottom - pivot.y) * sy
         return Rect(
-            minOf(l, r), minOf(t, b),
-            maxOf(l, r), maxOf(t, b)
+            minOf(l, r),
+            minOf(t, b),
+            maxOf(l, r),
+            maxOf(t, b),
         )
     }
 
@@ -68,7 +70,7 @@ data class Rect(
         left = minOf(left, point.x),
         top = minOf(top, point.y),
         right = maxOf(right, point.x),
-        bottom = maxOf(bottom, point.y)
+        bottom = maxOf(bottom, point.y),
     )
 
     fun corners(): List<Point> = listOf(topLeft, topRight, bottomRight, bottomLeft)
@@ -80,7 +82,7 @@ data class Rect(
             left = minOf(p1.x, p2.x),
             top = minOf(p1.y, p2.y),
             right = maxOf(p1.x, p2.x),
-            bottom = maxOf(p1.y, p2.y)
+            bottom = maxOf(p1.y, p2.y),
         )
 
         fun fromCenter(center: Point, width: Float, height: Float): Rect {

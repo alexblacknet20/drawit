@@ -2,8 +2,8 @@ package com.drawit.canvas
 
 import com.drawit.core.document.CornerStyle
 import com.drawit.core.document.EffectStack
-import com.drawit.core.document.Shape
 import com.drawit.core.document.ShadowEffect
+import com.drawit.core.document.Shape
 import com.drawit.core.document.TextShape
 import com.drawit.core.geometry.Rect
 import org.junit.Assert.assertEquals
@@ -52,7 +52,7 @@ class EditorFeaturesTest {
     fun polygonAndCornerTreatmentsProduceEditablePaths() {
         val polygon = Shape.PolygonShape(
             rect = Rect(0f, 0f, 100f, 100f),
-            sides = 8
+            sides = 8,
         )
         assertEquals(9, polygon.localPath().commands.size)
 
@@ -60,7 +60,7 @@ class EditorFeaturesTest {
             val rectangle = Shape.RectShape(
                 rect = Rect(0f, 0f, 100f, 50f),
                 cornerRadius = 8f,
-                cornerStyle = style
+                cornerStyle = style,
             )
             assertTrue(rectangle.localPath().commands.size > 5)
         }
@@ -72,17 +72,17 @@ class EditorFeaturesTest {
             dropShadow = ShadowEffect(offsetX = 4f, blurRadius = 6f),
             edgeBlurRadius = 1.5f,
             innerShadow = ShadowEffect(offsetY = -2f),
-            noiseAmount = 0.25f
+            noiseAmount = 0.25f,
         )
         val text = TextShape(
             text = "DrawIt",
             fontWeight = TextShape.Weight.BOLD,
             italic = true,
-            effects = effects
+            effects = effects,
         )
 
         val moved = text.withTransform(
-            com.drawit.core.geometry.Matrix.translate(10f, 20f)
+            com.drawit.core.geometry.Matrix.translate(10f, 20f),
         ) as TextShape
 
         assertEquals(TextShape.Weight.BOLD, moved.fontWeight)
@@ -104,14 +104,14 @@ class EditorFeaturesTest {
             rect = Rect(0f, 0f, 100f, 80f),
             startAngleDegrees = 30f,
             sweepDegrees = 120f,
-            arcRatio = 0f
+            arcRatio = 0f,
         )
         assertTrue(pie.localPath().commands.size >= 5)
 
         val ring = pie.copy(sweepDegrees = 360f, arcRatio = 0.6f)
         assertEquals(
             com.drawit.core.geometry.PathData.FillRule.EVEN_ODD,
-            ring.localPath().fillRule
+            ring.localPath().fillRule,
         )
         assertTrue(ring.localPath().commands.size > pie.localPath().commands.size)
     }

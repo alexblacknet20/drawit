@@ -19,13 +19,13 @@ data class TextShape(
     override val name: String = "Text",
     val text: String = "",
     val kind: Kind = Kind.ARTISTIC,
-    val fontFamily: String = "sans-serif",   // FontManager key
+    val fontFamily: String = "sans-serif", // FontManager key
     val fontWeight: Weight = Weight.REGULAR,
     val italic: Boolean = false,
-    val textSize: Float = 12f,               // mm
-    val frameWidth: Float = 0f,              // paragraph only (mm)
+    val textSize: Float = 12f, // mm
+    val frameWidth: Float = 0f, // paragraph only (mm)
     val align: Align = Align.LEFT,
-    val lineSpacing: Float = 1.2f,           // multiplier
+    val lineSpacing: Float = 1.2f, // multiplier
     /** Bounds measured by text engine; updated on edit. */
     val measuredBounds: Rect = Rect.EMPTY,
     override val transform: Matrix = Matrix.IDENTITY,
@@ -35,7 +35,7 @@ data class TextShape(
     override val locked: Boolean = false,
     override val opacity: Float = 1f,
     override val blendMode: BlendMode = BlendMode.NORMAL,
-    override val effects: EffectStack = EffectStack()
+    override val effects: EffectStack = EffectStack(),
 ) : Shape() {
 
     enum class Kind { ARTISTIC, PARAGRAPH }
@@ -46,19 +46,26 @@ data class TextShape(
         MEDIUM(500, "Medium"),
         SEMIBOLD(600, "Semi Bold"),
         BOLD(700, "Bold"),
-        BLACK(900, "Black")
+        BLACK(900, "Black"),
     }
 
     override fun localBounds(): Rect = measuredBounds
     override fun localPath(): PathData = PathData.EMPTY // text outlines via FontManager when needed
 
     override fun copyWith(
-        id: String, name: String, transform: Matrix, fill: Fill,
-        stroke: Stroke?, visible: Boolean, locked: Boolean,
-        opacity: Float, blendMode: BlendMode, effects: EffectStack
+        id: String,
+        name: String,
+        transform: Matrix,
+        fill: Fill,
+        stroke: Stroke?,
+        visible: Boolean,
+        locked: Boolean,
+        opacity: Float,
+        blendMode: BlendMode,
+        effects: EffectStack,
     ) = copy(
         id = id, name = name, transform = transform, fill = fill,
         stroke = stroke, visible = visible, locked = locked,
-        opacity = opacity, blendMode = blendMode, effects = effects
+        opacity = opacity, blendMode = blendMode, effects = effects,
     )
 }

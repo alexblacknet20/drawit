@@ -3,10 +3,7 @@ package com.drawit.canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -45,9 +42,15 @@ import com.drawit.core.document.Unit
 fun NewDocumentDialog(
     onDismiss: () -> kotlin.Unit,
     onCreate: (
-        name: String, widthMm: Float, heightMm: Float, landscape: Boolean,
-        bleed: Margins, colorMode: ColorMode, unit: Unit, dpi: Float
-    ) -> kotlin.Unit
+        name: String,
+        widthMm: Float,
+        heightMm: Float,
+        landscape: Boolean,
+        bleed: Margins,
+        colorMode: ColorMode,
+        unit: Unit,
+        dpi: Float,
+    ) -> kotlin.Unit,
 ) {
     var name by remember { mutableStateOf("Untitled") }
     var category by remember { mutableStateOf(PagePreset.Category.PRINT) }
@@ -76,14 +79,14 @@ fun NewDocumentDialog(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("Name") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 // Category chips
@@ -96,13 +99,13 @@ fun NewDocumentDialog(
                                     category = cat
                                     PagePreset.byCategory(cat).firstOrNull()?.let { applyPreset(it) }
                                 },
-                                label = { Text(cat.displayName, style = MaterialTheme.typography.labelSmall) }
+                                label = { Text(cat.displayName, style = MaterialTheme.typography.labelSmall) },
                             )
                         }
                     FilterChip(
                         selected = customMode,
                         onClick = { customMode = true },
-                        label = { Text("Custom", style = MaterialTheme.typography.labelSmall) }
+                        label = { Text("Custom", style = MaterialTheme.typography.labelSmall) },
                     )
                 }
 
@@ -111,7 +114,7 @@ fun NewDocumentDialog(
                     var expanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = expanded,
-                        onExpandedChange = { expanded = it }
+                        onExpandedChange = { expanded = it },
                     ) {
                         OutlinedTextField(
                             value = "${preset.name}  (${preset.displaySize})",
@@ -119,16 +122,19 @@ fun NewDocumentDialog(
                             readOnly = true,
                             label = { Text("Preset") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
                         )
                         ExposedDropdownMenu(
                             expanded = expanded,
-                            onDismissRequest = { expanded = false }
+                            onDismissRequest = { expanded = false },
                         ) {
                             PagePreset.byCategory(category).forEach { p ->
                                 DropdownMenuItem(
                                     text = { Text("${p.name} — ${p.displaySize}") },
-                                    onClick = { applyPreset(p); expanded = false }
+                                    onClick = {
+                                        applyPreset(p)
+                                        expanded = false
+                                    },
                                 )
                             }
                         }
@@ -139,25 +145,31 @@ fun NewDocumentDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = widthText,
-                        onValueChange = { widthText = it; customMode = true },
+                        onValueChange = {
+                            widthText = it
+                            customMode = true
+                        },
                         label = { Text("Width") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
                         value = heightText,
-                        onValueChange = { heightText = it; customMode = true },
+                        onValueChange = {
+                            heightText = it
+                            customMode = true
+                        },
                         label = { Text("Height") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                     var unitExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = unitExpanded,
                         onExpandedChange = { unitExpanded = it },
-                        modifier = Modifier.weight(0.9f)
+                        modifier = Modifier.weight(0.9f),
                     ) {
                         OutlinedTextField(
                             value = unit.shortName,
@@ -165,11 +177,11 @@ fun NewDocumentDialog(
                             readOnly = true,
                             label = { Text("Unit") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(unitExpanded) },
-                            modifier = Modifier.menuAnchor()
+                            modifier = Modifier.menuAnchor(),
                         )
                         ExposedDropdownMenu(
                             expanded = unitExpanded,
-                            onDismissRequest = { unitExpanded = false }
+                            onDismissRequest = { unitExpanded = false },
                         ) {
                             Unit.entries.forEach { u ->
                                 DropdownMenuItem(
@@ -182,7 +194,7 @@ fun NewDocumentDialog(
                                         widthText = trimNum(u.fromMm(wMm))
                                         heightText = trimNum(u.fromMm(hMm))
                                         unitExpanded = false
-                                    }
+                                    },
                                 )
                             }
                         }
@@ -194,12 +206,12 @@ fun NewDocumentDialog(
                     SegmentedButton(
                         selected = !landscape,
                         onClick = { landscape = false },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                     ) { Text("Portrait") }
                     SegmentedButton(
                         selected = landscape,
                         onClick = { landscape = true },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                     ) { Text("Landscape") }
                 }
 
@@ -209,7 +221,9 @@ fun NewDocumentDialog(
                             selected = colorMode == mode,
                             onClick = { colorMode = mode },
                             shape = SegmentedButtonDefaults.itemShape(
-                                index = i, count = ColorMode.entries.size)
+                                index = i,
+                                count = ColorMode.entries.size,
+                            ),
                         ) { Text(mode.displayName) }
                     }
                 }
@@ -222,7 +236,7 @@ fun NewDocumentDialog(
                         label = { Text("Bleed (mm)") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
                         value = dpiText,
@@ -230,7 +244,7 @@ fun NewDocumentDialog(
                         label = { Text("DPI") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -241,16 +255,27 @@ fun NewDocumentDialog(
                 val h = unit.toMm(heightText.toFloatOrNull() ?: 297f)
                 val bleed = bleedText.toFloatOrNull()?.coerceAtLeast(0f) ?: 0f
                 val dpi = dpiText.toFloatOrNull()?.coerceIn(72f, 1200f) ?: 300f
-                onCreate(name.ifBlank { "Untitled" }, w, h, landscape,
-                    Margins.uniform(bleed), colorMode, unit, dpi)
+                onCreate(
+                    name.ifBlank { "Untitled" },
+                    w,
+                    h,
+                    landscape,
+                    Margins.uniform(bleed),
+                    colorMode,
+                    unit,
+                    dpi,
+                )
             }) { Text("Create") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
+        },
     )
 }
 
 private fun trimNum(v: Float): String =
-    if (v == v.toLong().toFloat()) v.toLong().toString()
-    else "%.2f".format(v).trimEnd('0').trimEnd('.')
+    if (v == v.toLong().toFloat()) {
+        v.toLong().toString()
+    } else {
+        "%.2f".format(v).trimEnd('0').trimEnd('.')
+    }

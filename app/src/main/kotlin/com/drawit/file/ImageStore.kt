@@ -60,7 +60,9 @@ class ImageStore(private val context: Context) {
     }
 
     /** Register an id as used by the current session (e.g., after loading a file). */
-    fun register(imageId: String) { sessionIds.add(imageId) }
+    fun register(imageId: String) {
+        sessionIds.add(imageId)
+    }
 
     /** All ids used this session (for save embedding). */
     fun sessionImageIds(): Set<String> = sessionIds.toSet()
@@ -74,7 +76,10 @@ class ImageStore(private val context: Context) {
 
     /** Read an image from a .drawit ZIP entry into the store. */
     fun readFrom(imageId: String, bytes: ByteArray) {
-        if (File(dir, "$imageId.png").exists()) { sessionIds.add(imageId); return }
+        if (File(dir, "$imageId.png").exists()) {
+            sessionIds.add(imageId)
+            return
+        }
         val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return
         File(dir, "$imageId.png").outputStream().use {
             bmp.compress(Bitmap.CompressFormat.PNG, 90, it)

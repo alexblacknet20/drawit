@@ -10,7 +10,8 @@ enum class BlendMode(val displayName: String) {
     SCREEN("Screen"),
     OVERLAY("Overlay"),
     DARKEN("Darken"),
-    LIGHTEN("Lighten");
+    LIGHTEN("Lighten"),
+    ;
 
     companion object {
         fun fromName(name: String): BlendMode =

@@ -6,7 +6,6 @@ import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.LinearGradient
-import android.graphics.Matrix as AndroidMatrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
@@ -18,19 +17,19 @@ import com.drawit.core.document.Document
 import com.drawit.core.document.Fill
 import com.drawit.core.document.GradientStop
 import com.drawit.core.document.ImageShape
-import com.drawit.core.document.Shape
 import com.drawit.core.document.ShadowEffect
+import com.drawit.core.document.Shape
 import com.drawit.core.document.Stroke
 import com.drawit.core.document.TextShape
 import com.drawit.core.geometry.Matrix
 import com.drawit.core.geometry.PathCommand
 import com.drawit.core.geometry.PathData
-import com.drawit.core.geometry.Point
 import com.drawit.core.geometry.Rect
 import com.drawit.file.ImageStore
 import com.drawit.text.FontManager
 import com.drawit.text.TextEngine
 import java.util.Random
+import android.graphics.Matrix as AndroidMatrix
 
 /**
  * Phase 1 renderer: Android Canvas (Skia). Now supports:
@@ -41,7 +40,7 @@ import java.util.Random
 class SkiaRenderer(
     private val imageStore: ImageStore? = null,
     private val fontManager: FontManager? = null,
-    private val showPageDecorations: Boolean = true
+    private val showPageDecorations: Boolean = true,
 ) : IRenderer {
 
     private var canvas: Canvas? = null
@@ -53,10 +52,14 @@ class SkiaRenderer(
     private val textEngine = fontManager?.let { TextEngine(it) }
 
     override val capabilities = RenderCapabilities(
-        supportsTiling = false, supportsLod = false, hardwareAccelerated = true
+        supportsTiling = false,
+        supportsLod = false,
+        hardwareAccelerated = true,
     )
 
-    override fun setTarget(target: Any?) { canvas = target as? Canvas }
+    override fun setTarget(target: Any?) {
+        canvas = target as? Canvas
+    }
 
     override fun render(document: Document, viewMatrix: Matrix, dirtyRect: Rect?) {
         val c = canvas ?: return
@@ -95,22 +98,29 @@ class SkiaRenderer(
         c.restore()
     }
 
-    override fun renderOverlay(draw: (Any) -> Unit) { canvas?.let { draw(it) } }
-    override fun dispose() { canvas = null }
+    override fun renderOverlay(draw: (Any) -> Unit) {
+        canvas?.let { draw(it) }
+    }
+    override fun dispose() {
+        canvas = null
+    }
 
     // ================= Shape dispatch =================
 
     private fun renderShape(
         canvas: Canvas,
         shape: Shape,
-        inheritedEdgeBlurRadius: Float = 0f
+        inheritedEdgeBlurRadius: Float = 0f,
     ) {
         canvas.save()
         applyMatrix(canvas, shape.transform)
 
         val opacityScale = shape.opacity.coerceIn(0f, 1f)
-        val xfermode = if (shape.blendMode != com.drawit.core.document.BlendMode.NORMAL)
-            android.graphics.PorterDuffXfermode(shape.blendMode.toPorterDuff()) else null
+        val xfermode = if (shape.blendMode != com.drawit.core.document.BlendMode.NORMAL) {
+            android.graphics.PorterDuffXfermode(shape.blendMode.toPorterDuff())
+        } else {
+            null
+        }
         val effectPath = effectPath(shape)
 
         shape.effects.dropShadow?.let { shadow ->
@@ -121,12 +131,12 @@ class SkiaRenderer(
 
         val edgeBlurRadius = maxOf(
             inheritedEdgeBlurRadius,
-            shape.effects.edgeBlurRadius.coerceAtLeast(0f)
+            shape.effects.edgeBlurRadius.coerceAtLeast(0f),
         )
         val contentBlur = if (edgeBlurRadius > 0.001f) {
             BlurMaskFilter(
                 (edgeBlurRadius * deviceScale(canvas)).coerceAtLeast(0.5f),
-                BlurMaskFilter.Blur.NORMAL
+                BlurMaskFilter.Blur.NORMAL,
             )
         } else {
             null
@@ -136,10 +146,13 @@ class SkiaRenderer(
             is Shape.GroupShape -> {
                 val needsLayer = opacityScale < 1f || xfermode != null
                 if (needsLayer) {
-                    canvas.saveLayer(null, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        alpha = (255 * opacityScale).toInt()
-                        this.xfermode = xfermode
-                    })
+                    canvas.saveLayer(
+                        null,
+                        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                            alpha = (255 * opacityScale).toInt()
+                            this.xfermode = xfermode
+                        },
+                    )
                 }
                 val clip = shape.clipPath?.let { Path(toAndroidPath(it)) }
                 if (clip != null) {
@@ -165,14 +178,14 @@ class SkiaRenderer(
                 shape,
                 opacityScale,
                 xfermode,
-                contentBlur
+                contentBlur,
             )
             is ImageShape -> renderImage(
                 canvas,
                 shape,
                 opacityScale,
                 xfermode,
-                contentBlur
+                contentBlur,
             )
             else -> {
                 val androidPath = toAndroidPath(shape.localPath())
@@ -245,7 +258,7 @@ class SkiaRenderer(
                 shape.localBounds(),
                 shape.effects.noiseAmount,
                 opacityScale,
-                shape.id.hashCode().toLong()
+                shape.id.hashCode().toLong(),
             )
         }
         canvas.restore()
@@ -258,7 +271,7 @@ class SkiaRenderer(
         shape: TextShape,
         opacity: Float,
         xfermode: android.graphics.Xfermode?,
-        blurMask: BlurMaskFilter?
+        blurMask: BlurMaskFilter?,
     ) {
         val engine = textEngine ?: return
         val layout = engine.layout(shape)
@@ -332,7 +345,7 @@ class SkiaRenderer(
         shape: ImageShape,
         opacity: Float,
         xfermode: android.graphics.Xfermode?,
-        blurMask: BlurMaskFilter?
+        blurMask: BlurMaskFilter?,
     ) {
         val bmp = imageStore?.get(shape.imageId) ?: return
         fillPaint.alpha = (255 * opacity).toInt()
@@ -372,17 +385,25 @@ class SkiaRenderer(
                 val dx = cos * halfLength
                 val dy = sin * halfLength
                 LinearGradient(
-                    bounds.centerX - dx, bounds.centerY - dy,
-                    bounds.centerX + dx, bounds.centerY + dy,
-                    colors, positions, Shader.TileMode.CLAMP
+                    bounds.centerX - dx,
+                    bounds.centerY - dy,
+                    bounds.centerX + dx,
+                    bounds.centerY + dy,
+                    colors,
+                    positions,
+                    Shader.TileMode.CLAMP,
                 )
             }
             Fill.Gradient.Type.RADIAL -> {
                 val radius = maxOf(bounds.width, bounds.height) * 0.5f
                     .coerceAtLeast(0.001f)
                 RadialGradient(
-                    bounds.centerX, bounds.centerY, radius,
-                    colors, positions, Shader.TileMode.CLAMP
+                    bounds.centerX,
+                    bounds.centerY,
+                    radius,
+                    colors,
+                    positions,
+                    Shader.TileMode.CLAMP,
                 )
             }
         }
@@ -398,13 +419,13 @@ class SkiaRenderer(
         if (source.isEmpty()) {
             return listOf(
                 GradientStop(0f, Color.TRANSPARENT),
-                GradientStop(1f, Color.TRANSPARENT)
+                GradientStop(1f, Color.TRANSPARENT),
             )
         }
         if (source.size == 1) {
             return listOf(
                 source.first().copy(position = 0f),
-                source.first().copy(position = 1f)
+                source.first().copy(position = 1f),
             )
         }
 
@@ -417,7 +438,7 @@ class SkiaRenderer(
                 val t = step.toFloat() / subdivisions
                 result += GradientStop(
                     position = start.position + distance * t,
-                    color = interpolateColor(start.color, end.color, t)
+                    color = interpolateColor(start.color, end.color, t),
                 )
             }
         }
@@ -431,7 +452,7 @@ class SkiaRenderer(
             channel(start.r, end.r),
             channel(start.g, end.g),
             channel(start.b, end.b),
-            channel(start.a, end.a)
+            channel(start.a, end.a),
         )
     }
 
@@ -450,7 +471,7 @@ class SkiaRenderer(
                             line.text.length,
                             x,
                             line.baselineY,
-                            linePath
+                            linePath,
                         )
                         result.addPath(linePath)
                     }
@@ -473,7 +494,7 @@ class SkiaRenderer(
         canvas: Canvas,
         path: Path,
         shadow: ShadowEffect,
-        shapeOpacity: Float
+        shapeOpacity: Float,
     ) {
         val alpha = (shadow.color.a * shadow.opacity.coerceIn(0f, 1f) * shapeOpacity)
             .toInt()
@@ -486,7 +507,7 @@ class SkiaRenderer(
             if (shadow.blurRadius > 0.001f) {
                 maskFilter = BlurMaskFilter(
                     (shadow.blurRadius * deviceScale(canvas)).coerceAtLeast(0.5f),
-                    BlurMaskFilter.Blur.NORMAL
+                    BlurMaskFilter.Blur.NORMAL,
                 )
             }
         }
@@ -501,7 +522,7 @@ class SkiaRenderer(
         path: Path,
         bounds: Rect,
         shadow: ShadowEffect,
-        shapeOpacity: Float
+        shapeOpacity: Float,
     ) {
         val alpha = (shadow.color.a * shadow.opacity.coerceIn(0f, 1f) * shapeOpacity)
             .toInt()
@@ -514,12 +535,12 @@ class SkiaRenderer(
             strokeWidth = maxOf(
                 shadow.blurRadius * 2f,
                 minOf(bounds.width, bounds.height) * 0.02f,
-                0.25f
+                0.25f,
             )
             if (shadow.blurRadius > 0.001f) {
                 maskFilter = BlurMaskFilter(
                     (shadow.blurRadius * deviceScale(canvas)).coerceAtLeast(0.5f),
-                    BlurMaskFilter.Blur.NORMAL
+                    BlurMaskFilter.Blur.NORMAL,
                 )
             }
         }
@@ -536,7 +557,7 @@ class SkiaRenderer(
         bounds: Rect,
         amount: Float,
         shapeOpacity: Float,
-        seed: Long
+        seed: Long,
     ) {
         if (bounds.width <= 0f || bounds.height <= 0f) return
         val strength = amount.coerceIn(0f, 1f)
@@ -631,8 +652,11 @@ class SkiaRenderer(
             Stroke.Join.BEVEL -> Paint.Join.BEVEL
         }
         paint.strokeMiter = stroke.miterLimit
-        paint.pathEffect = if (stroke.dashPattern.isNotEmpty())
-            DashPathEffect(stroke.dashPattern.toFloatArray(), 0f) else null
+        paint.pathEffect = if (stroke.dashPattern.isNotEmpty()) {
+            DashPathEffect(stroke.dashPattern.toFloatArray(), 0f)
+        } else {
+            null
+        }
     }
 
     private fun toAndroidPath(pathData: PathData): Path {
@@ -646,7 +670,13 @@ class SkiaRenderer(
                 is PathCommand.MoveTo -> reusablePath.moveTo(cmd.point.x, cmd.point.y)
                 is PathCommand.LineTo -> reusablePath.lineTo(cmd.point.x, cmd.point.y)
                 is PathCommand.CubicTo -> reusablePath.cubicTo(
-                    cmd.cp1.x, cmd.cp1.y, cmd.cp2.x, cmd.cp2.y, cmd.end.x, cmd.end.y)
+                    cmd.cp1.x,
+                    cmd.cp1.y,
+                    cmd.cp2.x,
+                    cmd.cp2.y,
+                    cmd.end.x,
+                    cmd.end.y,
+                )
                 is PathCommand.QuadTo -> reusablePath.quadTo(cmd.cp.x, cmd.cp.y, cmd.end.x, cmd.end.y)
                 PathCommand.Close -> reusablePath.close()
             }
@@ -670,7 +700,7 @@ class SkiaRenderer(
         matrix.getValues(values)
         return kotlin.math.hypot(
             values[AndroidMatrix.MSCALE_X],
-            values[AndroidMatrix.MSKEW_Y]
+            values[AndroidMatrix.MSKEW_Y],
         ).coerceAtLeast(0.001f)
     }
 

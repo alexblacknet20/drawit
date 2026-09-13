@@ -7,7 +7,7 @@ data class Color(
     val r: Int, // 0-255
     val g: Int,
     val b: Int,
-    val a: Int = 255
+    val a: Int = 255,
 ) {
     init {
         require(r in 0..255 && g in 0..255 && b in 0..255 && a in 0..255) {
@@ -35,13 +35,13 @@ data class Color(
         (r * factor).toInt().coerceIn(0, 255),
         (g * factor).toInt().coerceIn(0, 255),
         (b * factor).toInt().coerceIn(0, 255),
-        a
+        a,
     )
     fun lighter(factor: Float = 1.25f) = Color(
         (r * factor).toInt().coerceIn(0, 255),
         (g * factor).toInt().coerceIn(0, 255),
         (b * factor).toInt().coerceIn(0, 255),
-        a
+        a,
     )
 
     fun toHexString(includeAlpha: Boolean = false): String {
@@ -66,7 +66,7 @@ data class Color(
             r = (argb shr 16) and 0xFF,
             g = (argb shr 8) and 0xFF,
             b = argb and 0xFF,
-            a = (argb shr 24) and 0xFF
+            a = (argb shr 24) and 0xFF,
         )
 
         fun fromHex(hex: String): Color {
@@ -75,13 +75,13 @@ data class Color(
                 6 -> Color(
                     cleaned.substring(0, 2).toInt(16),
                     cleaned.substring(2, 4).toInt(16),
-                    cleaned.substring(4, 6).toInt(16)
+                    cleaned.substring(4, 6).toInt(16),
                 )
                 8 -> Color(
                     cleaned.substring(2, 4).toInt(16),
                     cleaned.substring(4, 6).toInt(16),
                     cleaned.substring(6, 8).toInt(16),
-                    cleaned.substring(0, 2).toInt(16)
+                    cleaned.substring(0, 2).toInt(16),
                 )
                 else -> throw IllegalArgumentException("Invalid hex color: $hex")
             }

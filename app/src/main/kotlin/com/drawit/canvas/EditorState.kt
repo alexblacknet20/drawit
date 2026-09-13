@@ -117,7 +117,7 @@ class EditorState {
             a = baseScale,
             d = baseScale,
             e = screenCenter.x - documentCenter.x * baseScale,
-            f = screenCenter.y - documentCenter.y * baseScale
+            f = screenCenter.y - documentCenter.y * baseScale,
         )
         viewportVersion++
     }
@@ -134,7 +134,7 @@ class EditorState {
         val transformed = viewMatrix.transform(point)
         viewMatrix = viewMatrix.copy(
             e = viewMatrix.e + screenCenter.x - transformed.x,
-            f = viewMatrix.f + screenCenter.y - transformed.y
+            f = viewMatrix.f + screenCenter.y - transformed.y,
         )
         viewportVersion++
     }
@@ -153,7 +153,7 @@ class EditorState {
         bleed: Margins = Margins.ZERO,
         colorMode: ColorMode = ColorMode.RGB,
         displayUnit: Unit = Unit.MM,
-        dpi: Float = 96f
+        dpi: Float = 96f,
     ) {
         val w = if (landscape) maxOf(widthMm, heightMm) else minOf(widthMm, heightMm)
         val h = if (landscape) minOf(widthMm, heightMm) else maxOf(widthMm, heightMm)
@@ -162,7 +162,7 @@ class EditorState {
             dpi = dpi,
             colorMode = colorMode,
             displayUnit = displayUnit,
-            pages = listOf(Page(name = "Page 1", width = w, height = h, bleed = bleed))
+            pages = listOf(Page(name = "Page 1", width = w, height = h, bleed = bleed)),
         )
         currentFileUri = null
         afterDocumentReplaced()
@@ -192,12 +192,12 @@ class EditorState {
     fun addArtboard(
         name: String = "Artboard ${document.pages.size + 1}",
         width: Float = document.activePage.width,
-        height: Float = document.activePage.height
+        height: Float = document.activePage.height,
     ) {
         val page = Page(
             name = name.ifBlank { "Artboard ${document.pages.size + 1}" },
             width = width.coerceAtLeast(1f),
-            height = height.coerceAtLeast(1f)
+            height = height.coerceAtLeast(1f),
         )
         applyEdit("Add Artboard") { doc ->
             doc.copy(pages = doc.pages + page, activePageIndex = doc.pages.size)
@@ -223,7 +223,7 @@ class EditorState {
                 it.copy(
                     name = cleanedName,
                     width = width.coerceAtLeast(1f),
-                    height = height.coerceAtLeast(1f)
+                    height = height.coerceAtLeast(1f),
                 )
             }
         }
@@ -243,12 +243,14 @@ class EditorState {
         val before = document
         val after = transform(before)
         if (before === after || before == after) return
-        undoManager.execute(SnapshotCommand(
-            description = description,
-            before = before,
-            after = after,
-            apply = { doc -> setDocumentInternal(doc as Document) }
-        ))
+        undoManager.execute(
+            SnapshotCommand(
+                description = description,
+                before = before,
+                after = after,
+                apply = { doc -> setDocumentInternal(doc as Document) },
+            ),
+        )
         documentVersion++
     }
 
@@ -363,7 +365,7 @@ class EditorState {
 
     private data class LayerSelection(
         val layer: Layer,
-        val indexedShapes: List<IndexedValue<Shape>>
+        val indexedShapes: List<IndexedValue<Shape>>,
     )
 
     private fun selectedTopLevelShapesInOneLayer(): LayerSelection? {
@@ -387,7 +389,7 @@ class EditorState {
         val ids = selection.indexedShapes.map { it.value.id }.toSet()
         val group = Shape.GroupShape(
             name = "Group",
-            children = selection.indexedShapes.sortedBy { it.index }.map { it.value }
+            children = selection.indexedShapes.sortedBy { it.index }.map { it.value },
         )
         replaceSelectionWithShape(selection.layer, ids, selection.indexedShapes.maxOf { it.index }, group)
     }
@@ -427,7 +429,7 @@ class EditorState {
             children = content,
             clipPath = clipPath,
             fill = Fill.None,
-            stroke = container.value.stroke
+            stroke = container.value.stroke,
         )
         val ids = selection.indexedShapes.map { it.value.id }.toSet()
         replaceSelectionWithShape(selection.layer, ids, container.index, powerClip)
@@ -446,7 +448,7 @@ class EditorState {
         layer: Layer,
         removedIds: Set<String>,
         topIndex: Int,
-        replacement: Shape
+        replacement: Shape,
     ) {
         val insertionIndex = layer.shapes
             .take(topIndex + 1)
@@ -454,11 +456,13 @@ class EditorState {
         val newShapes = layer.shapes.filterNot { it.id in removedIds }
             .toMutableList()
             .apply { add(insertionIndex.coerceIn(0, size), replacement) }
-        applyEdit(if (replacement is Shape.GroupShape && replacement.clipPath != null) {
-            "Create PowerClip"
-        } else {
-            "Group"
-        }) { doc ->
+        applyEdit(
+            if (replacement is Shape.GroupShape && replacement.clipPath != null) {
+                "Create PowerClip"
+            } else {
+                "Group"
+            },
+        ) { doc ->
             doc.updateActivePage { page ->
                 page.updateLayer(layer.id) { it.copy(shapes = newShapes) }
             }
@@ -482,7 +486,7 @@ class EditorState {
                         child.blendMode
                     } else {
                         group.blendMode
-                    }
+                    },
                 )
         }.toMutableList()
 
@@ -496,7 +500,7 @@ class EditorState {
                     stroke = group.stroke,
                     opacity = group.opacity,
                     blendMode = group.blendMode,
-                    effects = group.effects
+                    effects = group.effects,
                 )
             }
         }
@@ -538,11 +542,19 @@ class EditorState {
 
     // ================= Selection =================
 
-    fun select(ids: Set<String>) { selectedShapeIds = ids }
-    fun clearSelection() { selectedShapeIds = emptySet() }
+    fun select(ids: Set<String>) {
+        selectedShapeIds = ids
+    }
+    fun clearSelection() {
+        selectedShapeIds = emptySet()
+    }
 
-    fun undo() { if (undoManager.undo()) documentVersion++ }
-    fun redo() { if (undoManager.redo()) documentVersion++ }
+    fun undo() {
+        if (undoManager.undo()) documentVersion++
+    }
+    fun redo() {
+        if (undoManager.redo()) documentVersion++
+    }
 
     fun selectedShapes(): List<Shape> =
         selectedShapeIds.mapNotNull { document.findShape(it) }

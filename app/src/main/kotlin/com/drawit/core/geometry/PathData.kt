@@ -17,7 +17,7 @@ sealed class PathCommand {
  */
 data class PathData(
     val commands: List<PathCommand> = emptyList(),
-    val fillRule: FillRule = FillRule.NON_ZERO
+    val fillRule: FillRule = FillRule.NON_ZERO,
 ) {
     enum class FillRule { NON_ZERO, EVEN_ODD }
 
@@ -73,22 +73,24 @@ data class PathData(
 
     fun transform(matrix: Matrix): PathData {
         if (matrix.isIdentity) return this
-        return copy(commands = commands.map { cmd ->
-            when (cmd) {
-                is PathCommand.MoveTo -> PathCommand.MoveTo(matrix.transform(cmd.point))
-                is PathCommand.LineTo -> PathCommand.LineTo(matrix.transform(cmd.point))
-                is PathCommand.CubicTo -> PathCommand.CubicTo(
-                    matrix.transform(cmd.cp1),
-                    matrix.transform(cmd.cp2),
-                    matrix.transform(cmd.end)
-                )
-                is PathCommand.QuadTo -> PathCommand.QuadTo(
-                    matrix.transform(cmd.cp),
-                    matrix.transform(cmd.end)
-                )
-                PathCommand.Close -> PathCommand.Close
-            }
-        })
+        return copy(
+            commands = commands.map { cmd ->
+                when (cmd) {
+                    is PathCommand.MoveTo -> PathCommand.MoveTo(matrix.transform(cmd.point))
+                    is PathCommand.LineTo -> PathCommand.LineTo(matrix.transform(cmd.point))
+                    is PathCommand.CubicTo -> PathCommand.CubicTo(
+                        matrix.transform(cmd.cp1),
+                        matrix.transform(cmd.cp2),
+                        matrix.transform(cmd.end),
+                    )
+                    is PathCommand.QuadTo -> PathCommand.QuadTo(
+                        matrix.transform(cmd.cp),
+                        matrix.transform(cmd.end),
+                    )
+                    PathCommand.Close -> PathCommand.Close
+                }
+            },
+        )
     }
 
     companion object {
@@ -128,7 +130,7 @@ data class PathData(
                 val angle = startAngleRad + (2f * Math.PI.toFloat() * i / sides)
                 val p = Point(
                     center.x + radius * kotlin.math.cos(angle),
-                    center.y + radius * kotlin.math.sin(angle)
+                    center.y + radius * kotlin.math.sin(angle),
                 )
                 path = if (i == 0) path.moveTo(p) else path.lineTo(p)
             }

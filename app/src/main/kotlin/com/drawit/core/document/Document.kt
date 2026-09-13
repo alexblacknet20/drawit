@@ -7,7 +7,7 @@ import com.drawit.core.geometry.Rect
  */
 enum class ColorMode(val displayName: String) {
     RGB("RGB (Digital)"),
-    CMYK("CMYK (Print)")
+    CMYK("CMYK (Print)"),
 }
 
 /**
@@ -17,7 +17,7 @@ data class Margins(
     val top: Float = 0f,
     val right: Float = 0f,
     val bottom: Float = 0f,
-    val left: Float = 0f
+    val left: Float = 0f,
 ) {
     val isZero: Boolean get() = top == 0f && right == 0f && bottom == 0f && left == 0f
     companion object {
@@ -34,7 +34,7 @@ data class Layer(
     val name: String = "Layer",
     val shapes: List<Shape> = emptyList(),
     val visible: Boolean = true,
-    val locked: Boolean = false
+    val locked: Boolean = false,
 ) {
     fun addShape(shape: Shape): Layer = copy(shapes = shapes + shape)
     fun removeShape(shapeId: String): Layer =
@@ -59,18 +59,20 @@ data class Layer(
 data class Page(
     val id: String = Shape.newId(),
     val name: String = "Page 1",
-    val width: Float = 210f,   // mm (A4 default)
-    val height: Float = 297f,  // mm
+    val width: Float = 210f, // mm (A4 default)
+    val height: Float = 297f, // mm
     val bleed: Margins = Margins.ZERO,
     val layers: List<Layer> = listOf(Layer(name = "Layer 1")),
-    val activeLayerId: String = layers.first().id
+    val activeLayerId: String = layers.first().id,
 ) {
     val size: Rect get() = Rect(0f, 0f, width, height)
 
     /** Page size including bleed on all sides. */
     val sizeWithBleed: Rect get() = Rect(
-        -bleed.left, -bleed.top,
-        width + bleed.right, height + bleed.bottom
+        -bleed.left,
+        -bleed.top,
+        width + bleed.right,
+        height + bleed.bottom,
     )
 
     fun activeLayer(): Layer = layers.find { it.id == activeLayerId } ?: layers.first()
@@ -85,7 +87,7 @@ data class Page(
         val newLayers = layers.filter { it.id != layerId }
         return copy(
             layers = newLayers,
-            activeLayerId = if (activeLayerId == layerId) newLayers.first().id else activeLayerId
+            activeLayerId = if (activeLayerId == layerId) newLayers.first().id else activeLayerId,
         )
     }
 
@@ -123,7 +125,7 @@ data class Document(
     val activePageIndex: Int = 0,
     val dpi: Float = 96f,
     val colorMode: ColorMode = ColorMode.RGB,
-    val displayUnit: Unit = Unit.MM
+    val displayUnit: Unit = Unit.MM,
 ) {
     val activePage: Page get() = pages[activePageIndex.coerceIn(0, pages.size - 1)]
 
@@ -137,14 +139,16 @@ data class Document(
         val newPages = pages.filterIndexed { i, _ -> i != index }
         return copy(
             pages = newPages,
-            activePageIndex = activePageIndex.coerceIn(0, newPages.size - 1)
+            activePageIndex = activePageIndex.coerceIn(0, newPages.size - 1),
         )
     }
 
     fun updateActivePage(transform: (Page) -> Page): Document =
-        copy(pages = pages.mapIndexed { i, p ->
-            if (i == activePageIndex) transform(p) else p
-        })
+        copy(
+            pages = pages.mapIndexed { i, p ->
+                if (i == activePageIndex) transform(p) else p
+            },
+        )
 
     fun addShape(shape: Shape): Document =
         updateActivePage { it.addShapeToActiveLayer(shape) }

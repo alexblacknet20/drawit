@@ -13,8 +13,12 @@ class UndoManagerTest {
 
     private fun incrementCommand(counter: Counter, amount: Int = 1) = object : Command {
         override val description = "Increment by $amount"
-        override fun execute() { counter.value += amount }
-        override fun undo() { counter.value -= amount }
+        override fun execute() {
+            counter.value += amount
+        }
+        override fun undo() {
+            counter.value -= amount
+        }
     }
 
     @Test
@@ -83,18 +87,22 @@ class UndoManagerTest {
         // mergeWith combines the new end-state with the original start-state.
         class Drag(val from: Int, val to: Int) : Command {
             override val description = "Drag"
-            override fun execute() { counter.value = to }
-            override fun undo() { counter.value = from }
+            override fun execute() {
+                counter.value = to
+            }
+            override fun undo() {
+                counter.value = from
+            }
             override fun mergeWith(other: Command): Command? =
                 (other as? Drag)?.let { Drag(this.from, it.to) }
         }
 
-        undo.execute(Drag(0, 5))   // 0 → 5
-        undo.execute(Drag(5, 9))   // merges into Drag(0, 9); execute → 9
+        undo.execute(Drag(0, 5)) // 0 → 5
+        undo.execute(Drag(5, 9)) // merges into Drag(0, 9); execute → 9
 
         assertEquals(9, counter.value)
-        assertTrue(undo.undo())    // single undo reverts the WHOLE drag
+        assertTrue(undo.undo()) // single undo reverts the WHOLE drag
         assertEquals(0, counter.value)
-        assertFalse(undo.canUndo)  // ...as exactly one undo step
+        assertFalse(undo.canUndo) // ...as exactly one undo step
     }
 }

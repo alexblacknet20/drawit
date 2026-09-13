@@ -23,7 +23,7 @@ import kotlin.math.ceil
  */
 class NodeEditTool(
     private val state: EditorState,
-    private val textEngine: TextEngine
+    private val textEngine: TextEngine,
 ) : Tool {
 
     override val id = "node-edit"
@@ -148,7 +148,7 @@ class NodeEditTool(
             fill = when (selected) {
                 is ImageShape -> Fill.Pattern(
                     imageId = selected.imageId,
-                    placement = Fill.Pattern.Placement.STRETCH
+                    placement = Fill.Pattern.Placement.STRETCH,
                 )
                 is Shape.GroupShape ->
                     if (selected.fill != Fill.None) selected.fill else firstChild?.fill ?: Fill.None
@@ -159,7 +159,7 @@ class NodeEditTool(
             locked = selected.locked,
             opacity = selected.opacity,
             blendMode = selected.blendMode,
-            effects = selected.effects
+            effects = selected.effects,
         )
         state.updateShape(selected.id, "Convert to Curves") { converted }
         return converted
@@ -177,7 +177,7 @@ class NodeEditTool(
     private fun combinePaths(paths: List<PathData>): PathData =
         PathData(
             commands = paths.flatMap { it.commands },
-            fillRule = paths.firstOrNull()?.fillRule ?: PathData.FillRule.NON_ZERO
+            fillRule = paths.firstOrNull()?.fillRule ?: PathData.FillRule.NON_ZERO,
         )
 
     private fun textOutline(shape: TextShape): PathData {
@@ -191,7 +191,7 @@ class NodeEditTool(
                 line.text.length,
                 x,
                 line.baselineY,
-                androidPath
+                androidPath,
             )
         }
 
@@ -277,7 +277,7 @@ class NodeEditTool(
                 "Node Editor: select exactly one object first",
                 18f,
                 34f,
-                helpPaint
+                helpPaint,
             )
             return
         }
@@ -285,7 +285,7 @@ class NodeEditTool(
             "Node Editor: drag squares/round handles • Delete removes selected node • Undo restores conversion",
             18f,
             34f,
-            helpPaint
+            helpPaint,
         )
         val handleSize = state.controlHandleSizePx.coerceIn(3f, 14f)
         val nodePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -343,14 +343,18 @@ class NodeEditTool(
             val paint = if (ref == selectedNode) selectedPaint else nodePaint
             if (ref.role == Role.END) {
                 target.drawRect(
-                    screen.x - handleSize, screen.y - handleSize,
-                    screen.x + handleSize, screen.y + handleSize,
-                    paint
+                    screen.x - handleSize,
+                    screen.y - handleSize,
+                    screen.x + handleSize,
+                    screen.y + handleSize,
+                    paint,
                 )
                 target.drawRect(
-                    screen.x - handleSize, screen.y - handleSize,
-                    screen.x + handleSize, screen.y + handleSize,
-                    outlinePaint
+                    screen.x - handleSize,
+                    screen.y - handleSize,
+                    screen.x + handleSize,
+                    screen.y + handleSize,
+                    outlinePaint,
                 )
             } else {
                 target.drawCircle(screen.x, screen.y, handleSize * 0.9f, paint)

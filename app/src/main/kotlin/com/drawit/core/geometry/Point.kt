@@ -33,7 +33,7 @@ data class Point(val x: Float = 0f, val y: Float = 0f) {
         val translated = this - center
         return Point(
             translated.x * cos - translated.y * sin,
-            translated.x * sin + translated.y * cos
+            translated.x * sin + translated.y * cos,
         ) + center
     }
 

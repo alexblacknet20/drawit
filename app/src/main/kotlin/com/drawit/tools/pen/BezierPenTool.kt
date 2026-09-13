@@ -19,7 +19,7 @@ import com.drawit.core.input.ToolEvent
 class BezierPenTool(
     private val state: EditorState,
     private val strokeColor: Color = Color.BLACK,
-    private val strokeWidth: Float = 0.3f
+    private val strokeWidth: Float = 0.3f,
 ) : Tool {
 
     override val id = "bezier-pen"
@@ -28,7 +28,7 @@ class BezierPenTool(
     private data class Anchor(
         val point: Point,
         val inHandle: Point? = null,
-        val outHandle: Point? = null
+        val outHandle: Point? = null,
     )
 
     private var context: ToolContext? = null
@@ -149,7 +149,7 @@ class BezierPenTool(
                 path = path.cubicTo(
                     last.point + (last.outHandle ?: Point.ZERO),
                     first.point + (first.inHandle ?: Point.ZERO),
-                    first.point
+                    first.point,
                 )
             }
             path = path.close()
@@ -164,9 +164,9 @@ class BezierPenTool(
                     color = strokeColor,
                     width = strokeWidth,
                     cap = Stroke.Cap.ROUND,
-                    join = Stroke.Join.ROUND
-                )
-            )
+                    join = Stroke.Join.ROUND,
+                ),
+            ),
         )
         cancelPath()
     }
@@ -176,7 +176,7 @@ class BezierPenTool(
             path.cubicTo(
                 from.point + (from.outHandle ?: Point.ZERO),
                 to.point + (to.inHandle ?: Point.ZERO),
-                to.point
+                to.point,
             )
         } else {
             path.lineTo(to.point)
@@ -224,7 +224,7 @@ class BezierPenTool(
                     androidPath,
                     points.last(),
                     Anchor(currentPoint, inHandle = handle * -1f, outHandle = handle),
-                    toScreen
+                    toScreen,
                 )
             }
             target.drawPath(androidPath, pathPaint)
@@ -233,12 +233,17 @@ class BezierPenTool(
         if (points.isNotEmpty() && downPosition == null) {
             val last = toScreen(points.last().point)
             val cursor = toScreen(cursorPosition)
-            target.drawLine(last.x, last.y, cursor.x, cursor.y,
+            target.drawLine(
+                last.x,
+                last.y,
+                cursor.x,
+                cursor.y,
                 android.graphics.Paint(pathPaint).apply {
                     color = android.graphics.Color.argb(120, 0, 120, 215)
                     strokeWidth = 1f
                     pathEffect = android.graphics.DashPathEffect(floatArrayOf(4f, 4f), 0f)
-                })
+                },
+            )
         }
 
         points.forEach { anchor ->
@@ -252,7 +257,7 @@ class BezierPenTool(
                 Anchor(point, inHandle = handle * -1f, outHandle = handle),
                 toScreen,
                 anchorPaint,
-                handlePaint
+                handlePaint,
             )
         }
     }
@@ -261,7 +266,7 @@ class BezierPenTool(
         path: android.graphics.Path,
         from: Anchor,
         to: Anchor,
-        toScreen: (Point) -> Point
+        toScreen: (Point) -> Point,
     ) {
         val end = toScreen(to.point)
         if (from.outHandle != null || to.inHandle != null) {
@@ -278,7 +283,7 @@ class BezierPenTool(
         anchor: Anchor,
         toScreen: (Point) -> Point,
         anchorPaint: android.graphics.Paint,
-        handlePaint: android.graphics.Paint
+        handlePaint: android.graphics.Paint,
     ) {
         val center = toScreen(anchor.point)
         val handleSize = state.controlHandleSizePx.coerceIn(3f, 14f)
@@ -297,7 +302,7 @@ class BezierPenTool(
             center.y - handleSize,
             center.x + handleSize,
             center.y + handleSize,
-            anchorPaint
+            anchorPaint,
         )
     }
 }

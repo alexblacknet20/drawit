@@ -39,7 +39,7 @@ class FontManager(private val context: Context) {
             FontInfo("sans-serif", "Sans Serif", Source.SYSTEM),
             FontInfo("serif", "Serif", Source.SYSTEM),
             FontInfo("monospace", "Monospace", Source.SYSTEM),
-            FontInfo("cursive", "Cursive", Source.SYSTEM)
+            FontInfo("cursive", "Cursive", Source.SYSTEM),
         )
         return bundled + imported + system
     }
@@ -83,9 +83,12 @@ class FontManager(private val context: Context) {
         }
         key.startsWith("imported:") -> {
             val file = File(importedDir, key.removePrefix("imported:"))
-            if (file.exists()) runCatching { Typeface.createFromFile(file) }
-                .getOrDefault(Typeface.DEFAULT)
-            else Typeface.DEFAULT
+            if (file.exists()) {
+                runCatching { Typeface.createFromFile(file) }
+                    .getOrDefault(Typeface.DEFAULT)
+            } else {
+                Typeface.DEFAULT
+            }
         }
         key.startsWith("system:") -> Typeface.create(key.removePrefix("system:"), Typeface.NORMAL)
         else -> Typeface.create(key, Typeface.NORMAL) // "sans-serif" etc.
@@ -103,7 +106,10 @@ class FontManager(private val context: Context) {
         out.outputStream().use { input.copyTo(it) }
         // Validate it loads
         runCatching { Typeface.createFromFile(out) }
-            .onFailure { out.delete(); throw IllegalArgumentException("Not a valid font file") }
+            .onFailure {
+                out.delete()
+                throw IllegalArgumentException("Not a valid font file")
+            }
         typefaceCache.keys.removeAll { it.startsWith("imported:$safe|") }
         return "imported:$safe"
     }

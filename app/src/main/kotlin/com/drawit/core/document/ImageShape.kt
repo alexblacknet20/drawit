@@ -20,19 +20,26 @@ data class ImageShape(
     override val locked: Boolean = false,
     override val opacity: Float = 1f,
     override val blendMode: BlendMode = BlendMode.NORMAL,
-    override val effects: EffectStack = EffectStack()
+    override val effects: EffectStack = EffectStack(),
 ) : Shape() {
 
     override fun localBounds(): Rect = rect
     override fun localPath(): PathData = PathData.rect(rect)
 
     override fun copyWith(
-        id: String, name: String, transform: Matrix, fill: Fill,
-        stroke: Stroke?, visible: Boolean, locked: Boolean,
-        opacity: Float, blendMode: BlendMode, effects: EffectStack
+        id: String,
+        name: String,
+        transform: Matrix,
+        fill: Fill,
+        stroke: Stroke?,
+        visible: Boolean,
+        locked: Boolean,
+        opacity: Float,
+        blendMode: BlendMode,
+        effects: EffectStack,
     ) = copy(
         id = id, name = name, transform = transform, fill = fill,
         stroke = stroke, visible = visible, locked = locked,
-        opacity = opacity, blendMode = blendMode, effects = effects
+        opacity = opacity, blendMode = blendMode, effects = effects,
     )
 }

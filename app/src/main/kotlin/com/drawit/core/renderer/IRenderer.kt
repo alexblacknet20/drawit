@@ -37,5 +37,5 @@ data class RenderCapabilities(
     val supportsTiling: Boolean = false,
     val supportsLod: Boolean = false,
     val maxTextureSize: Int = 0,
-    val hardwareAccelerated: Boolean = true
+    val hardwareAccelerated: Boolean = true,
 )

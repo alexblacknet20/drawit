@@ -14,16 +14,16 @@ import kotlin.math.sqrt
 object RasterExporter {
     enum class Format(
         val displayName: String,
-        val compressFormat: Bitmap.CompressFormat
+        val compressFormat: Bitmap.CompressFormat,
     ) {
         PNG("PNG", Bitmap.CompressFormat.PNG),
-        JPEG("JPG", Bitmap.CompressFormat.JPEG)
+        JPEG("JPG", Bitmap.CompressFormat.JPEG),
     }
 
     data class Result(
         val widthPx: Int,
         val heightPx: Int,
-        val effectiveDpi: Float
+        val effectiveDpi: Float,
     )
 
     private const val MM_PER_INCH = 25.4f
@@ -37,7 +37,7 @@ object RasterExporter {
         fontManager: FontManager,
         format: Format,
         dpi: Float = document.dpi,
-        jpegQuality: Int = 95
+        jpegQuality: Int = 95,
     ): Result {
         val page = document.activePage
         val requestedDpi = dpi.coerceIn(36f, 1200f)
@@ -53,7 +53,7 @@ object RasterExporter {
         val edgeScale = minOf(
             1f,
             MAX_EDGE.toFloat() / width,
-            MAX_EDGE.toFloat() / height
+            MAX_EDGE.toFloat() / height,
         )
         val safetyScale = minOf(pixelScale, edgeScale)
         if (safetyScale < 1f) {
@@ -69,7 +69,7 @@ object RasterExporter {
             val renderer = SkiaRenderer(
                 imageStore = imageStore,
                 fontManager = fontManager,
-                showPageDecorations = false
+                showPageDecorations = false,
             )
             try {
                 renderer.setTarget(canvas)
@@ -81,8 +81,8 @@ object RasterExporter {
                 bitmap.compress(
                     format.compressFormat,
                     if (format == Format.JPEG) jpegQuality.coerceIn(1, 100) else 100,
-                    output
-                )
+                    output,
+                ),
             ) { "Android could not encode ${format.displayName}" }
             output.flush()
         } finally {
@@ -91,7 +91,7 @@ object RasterExporter {
         return Result(
             widthPx = width,
             heightPx = height,
-            effectiveDpi = scale * MM_PER_INCH
+            effectiveDpi = scale * MM_PER_INCH,
         )
     }
 }

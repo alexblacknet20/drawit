@@ -7,6 +7,7 @@ interface Command {
     val description: String
     fun execute()
     fun undo()
+
     /** Optional: merge with a subsequent command (e.g., continuous drag). */
     fun mergeWith(other: Command): Command? = null
 }
@@ -15,7 +16,7 @@ interface Command {
  * Undo/redo stack with coalescing and memory bounds.
  */
 class UndoManager(
-    private val maxDepth: Int = 100
+    private val maxDepth: Int = 100,
 ) {
     private val undoStack = ArrayDeque<Command>()
     private val redoStack = ArrayDeque<Command>()
@@ -88,7 +89,7 @@ class SnapshotCommand(
     override val description: String,
     private val before: Any,
     private val after: Any,
-    private val apply: (Any) -> Unit
+    private val apply: (Any) -> Unit,
 ) : Command {
     override fun execute() = apply(after)
     override fun undo() = apply(before)

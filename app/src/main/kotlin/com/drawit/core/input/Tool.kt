@@ -9,12 +9,16 @@ import com.drawit.core.geometry.Point
 interface ToolContext {
     /** Convert document point → screen point (for overlays). */
     fun documentToScreen(p: Point): Point
+
     /** Convert screen point → document point. */
     fun screenToDocument(p: Point): Point
+
     /** Current zoom factor (pixels per document unit). */
     val zoom: Float
+
     /** Request canvas redraw. */
     fun invalidate()
+
     /** Hit-test tolerance in document units (screen-constant). */
     val hitTolerance: Float
 }

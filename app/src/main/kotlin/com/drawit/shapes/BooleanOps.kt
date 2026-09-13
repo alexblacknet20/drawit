@@ -1,14 +1,12 @@
 package com.drawit.shapes
 
-import android.graphics.Path as AndroidPath
 import android.graphics.PathMeasure
-import com.drawit.core.document.Fill
 import com.drawit.core.document.Shape
-import com.drawit.core.geometry.Matrix
 import com.drawit.core.geometry.PathCommand
 import com.drawit.core.geometry.PathData
 import com.drawit.core.geometry.Point
 import kotlin.math.abs
+import android.graphics.Path as AndroidPath
 
 /**
  * Destructive boolean operations via Skia (android.graphics.Path.op).
@@ -24,7 +22,7 @@ object BooleanOps {
         UNION("Weld"),
         DIFFERENCE("Trim"),
         INTERSECT("Intersect"),
-        XOR("Exclude")
+        XOR("Exclude"),
     }
 
     /**
@@ -73,7 +71,7 @@ object BooleanOps {
             stroke = source.stroke,
             opacity = source.opacity,
             blendMode = source.blendMode,
-            effects = source.effects
+            effects = source.effects,
         )
     }
 
@@ -88,7 +86,13 @@ object BooleanOps {
                 is PathCommand.MoveTo -> p.moveTo(cmd.point.x, cmd.point.y)
                 is PathCommand.LineTo -> p.lineTo(cmd.point.x, cmd.point.y)
                 is PathCommand.CubicTo -> p.cubicTo(
-                    cmd.cp1.x, cmd.cp1.y, cmd.cp2.x, cmd.cp2.y, cmd.end.x, cmd.end.y)
+                    cmd.cp1.x,
+                    cmd.cp1.y,
+                    cmd.cp2.x,
+                    cmd.cp2.y,
+                    cmd.end.x,
+                    cmd.end.y,
+                )
                 is PathCommand.QuadTo -> p.quadTo(cmd.cp.x, cmd.cp.y, cmd.end.x, cmd.end.y)
                 PathCommand.Close -> p.close()
             }

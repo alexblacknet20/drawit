@@ -20,7 +20,7 @@ class PenTool(
     private val state: EditorState,
     private val strokeColor: Color = Color.BLACK,
     private val baseStrokeWidth: Float = 0.5f, // mm
-    private val usePressure: Boolean = true
+    private val usePressure: Boolean = true,
 ) : Tool {
 
     override val id = "pen"
@@ -81,7 +81,7 @@ class PenTool(
                     name = "Brush Stroke",
                     pathData = pressureOutline(currentPoints),
                     fill = Fill.Solid(strokeColor),
-                    stroke = null
+                    stroke = null,
                 )
             } else {
                 val pathData = if (currentPoints.size == 1) {
@@ -98,8 +98,8 @@ class PenTool(
                         color = strokeColor,
                         width = baseStrokeWidth,
                         cap = Stroke.Cap.ROUND,
-                        join = Stroke.Join.ROUND
-                    )
+                        join = Stroke.Join.ROUND,
+                    ),
                 )
             }
             state.addShape(shape)

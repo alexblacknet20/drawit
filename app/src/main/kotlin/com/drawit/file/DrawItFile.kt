@@ -32,7 +32,7 @@ object DrawItFile {
         doc: Document,
         out: OutputStream,
         imageStore: ImageStore? = null,
-        fontManager: FontManager? = null
+        fontManager: FontManager? = null,
     ) {
         ZipOutputStream(out.buffered()).use { zip ->
             writeEntry(
@@ -43,12 +43,12 @@ object DrawItFile {
                     .put("formatVersion", DocumentSerializer.FORMAT_VERSION)
                     .put("generator", "DrawIt 0.1.0-alpha")
                     .toString()
-                    .toByteArray(Charsets.UTF_8)
+                    .toByteArray(Charsets.UTF_8),
             )
             writeEntry(
                 zip,
                 "document.json",
-                DocumentSerializer.toJson(doc).toString(2).toByteArray(Charsets.UTF_8)
+                DocumentSerializer.toJson(doc).toString(2).toByteArray(Charsets.UTF_8),
             )
 
             val shapes = allShapes(doc)
@@ -88,7 +88,7 @@ object DrawItFile {
     fun read(
         input: InputStream,
         imageStore: ImageStore? = null,
-        fontManager: FontManager? = null
+        fontManager: FontManager? = null,
     ): Document {
         var documentJson: String? = null
         ZipInputStream(input.buffered()).use { zip ->
@@ -161,7 +161,7 @@ object DrawItFile {
     private fun renderPreview(
         doc: Document,
         imageStore: ImageStore?,
-        fontManager: FontManager?
+        fontManager: FontManager?,
     ): Bitmap {
         val page = doc.activePage
         val targetWidth = 512

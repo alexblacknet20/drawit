@@ -3,7 +3,6 @@ package com.drawit.canvas
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color as AndroidColor
 import android.graphics.Paint
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -21,6 +20,7 @@ import com.drawit.core.input.Tool
 import com.drawit.core.input.ToolContext
 import com.drawit.core.input.ToolEvent
 import com.drawit.core.renderer.SkiaRenderer
+import android.graphics.Color as AndroidColor
 
 /**
  * The document canvas — a custom View that:
@@ -52,11 +52,12 @@ class CanvasView(context: Context) : View(context), ToolContext {
         }
 
     private val renderer: SkiaRenderer
-        get() = _renderer ?: SkiaRenderer(imageStore, fontManager).also { _renderer = it }
-    private var _renderer: SkiaRenderer? = null
+        get() = cachedRenderer ?: SkiaRenderer(imageStore, fontManager).also { cachedRenderer = it }
+    private var cachedRenderer: SkiaRenderer? = null
 
     // --- Gesture state ---
     private var primaryPointerId = -1
+
     /** A second touch acts as Shift while the primary pointer keeps editing. */
     private var touchShiftPointerId = -1
     private var isViewportGesture = false
@@ -110,7 +111,7 @@ class CanvasView(context: Context) : View(context), ToolContext {
             softwareEffectsEnabled = needsSoftwareEffects
             setLayerType(
                 if (needsSoftwareEffects) LAYER_TYPE_SOFTWARE else LAYER_TYPE_HARDWARE,
-                null
+                null,
             )
         }
 
@@ -123,7 +124,8 @@ class CanvasView(context: Context) : View(context), ToolContext {
         // SelectTool draws the interactive transform box itself. Other tools
         // keep a lightweight outline for the current selection.
         if (activeTool !is com.drawit.tools.select.SelectTool &&
-            activeTool !is com.drawit.tools.node.NodeEditTool) {
+            activeTool !is com.drawit.tools.node.NodeEditTool
+        ) {
             drawSelectionOverlay(canvas, state)
         }
 
@@ -146,14 +148,18 @@ class CanvasView(context: Context) : View(context), ToolContext {
             val handleSize = state.controlHandleSizePx.coerceIn(3f, 14f)
             for (corner in corners) {
                 canvas.drawRect(
-                    corner.x - handleSize, corner.y - handleSize,
-                    corner.x + handleSize, corner.y + handleSize,
-                    handlePaint
+                    corner.x - handleSize,
+                    corner.y - handleSize,
+                    corner.x + handleSize,
+                    corner.y + handleSize,
+                    handlePaint,
                 )
                 canvas.drawRect(
-                    corner.x - handleSize, corner.y - handleSize,
-                    corner.x + handleSize, corner.y + handleSize,
-                    handleStrokePaint
+                    corner.x - handleSize,
+                    corner.y - handleSize,
+                    corner.x + handleSize,
+                    corner.y + handleSize,
+                    handleStrokePaint,
                 )
             }
         }
@@ -183,8 +189,8 @@ class CanvasView(context: Context) : View(context), ToolContext {
                             modifiers = modifiersOf(event),
                             pressure = pressureOf(event, 0),
                             tilt = tiltOf(event, 0),
-                            timestamp = event.eventTime
-                        )
+                            timestamp = event.eventTime,
+                        ),
                     )
                 } else {
                     if (activeTool?.isConstrainableGestureActive == true) {
@@ -210,7 +216,7 @@ class CanvasView(context: Context) : View(context), ToolContext {
                     val span = gestureSpan(event)
                     state.pan(
                         focus.x - lastGestureFocus.x,
-                        focus.y - lastGestureFocus.y
+                        focus.y - lastGestureFocus.y,
                     )
                     if (lastGestureSpan > 0f && span > 0f) {
                         state.zoomAt(focus, span / lastGestureSpan)
@@ -241,8 +247,8 @@ class CanvasView(context: Context) : View(context), ToolContext {
                             button = buttonOf(event),
                             modifiers = modifiersOf(event),
                             pressure = pressureOf(event, idx),
-                            timestamp = event.eventTime
-                        )
+                            timestamp = event.eventTime,
+                        ),
                     )
                     primaryPointerId = -1
                 } else if (upPointerId == touchShiftPointerId) {
@@ -279,8 +285,8 @@ class CanvasView(context: Context) : View(context), ToolContext {
                         pointerType = pointerTypeOf(event, 0),
                         modifiers = modifiersOf(event),
                         tilt = tiltOf(event, 0),
-                        timestamp = event.eventTime
-                    )
+                        timestamp = event.eventTime,
+                    ),
                 )
                 return true
             }
@@ -325,23 +331,29 @@ class CanvasView(context: Context) : View(context), ToolContext {
             shift = event.isShiftPressed,
             ctrl = event.isCtrlPressed,
             alt = event.isAltPressed,
-            meta = event.isMetaPressed
+            meta = event.isMetaPressed,
         )
         val toolEvent = ToolEvent.Key(
             keyCode = keyCode,
             modifiers = modifiers,
             unicodeChar = event.getUnicodeChar(event.metaState),
-            timestamp = event.eventTime
+            timestamp = event.eventTime,
         )
 
         // Global shortcuts
         when {
             modifiers.ctrl && keyCode == KeyEvent.KEYCODE_Z && !modifiers.shift -> {
-                state.undo(); invalidate(); return true
+                state.undo()
+                invalidate()
+                return true
             }
-            modifiers.ctrl && (keyCode == KeyEvent.KEYCODE_Y ||
-                    (keyCode == KeyEvent.KEYCODE_Z && modifiers.shift)) -> {
-                state.redo(); invalidate(); return true
+            modifiers.ctrl && (
+                keyCode == KeyEvent.KEYCODE_Y ||
+                    (keyCode == KeyEvent.KEYCODE_Z && modifiers.shift)
+                ) -> {
+                state.redo()
+                invalidate()
+                return true
             }
         }
 
@@ -392,7 +404,7 @@ class CanvasView(context: Context) : View(context), ToolContext {
             var result = doc
             for (shape in selected) {
                 val moved = shape.withTransform(
-                    com.drawit.core.geometry.Matrix.translate(delta.x, delta.y) * shape.transform
+                    com.drawit.core.geometry.Matrix.translate(delta.x, delta.y) * shape.transform,
                 )
                 result = result.replaceShape(shape.id, moved)
             }
@@ -417,7 +429,10 @@ class CanvasView(context: Context) : View(context), ToolContext {
     private fun dispatchPrimaryMove(event: MotionEvent, state: EditorState) {
         val index = event.findPointerIndex(primaryPointerId)
         if (index < 0 || index == event.actionIndex &&
-            event.actionMasked == MotionEvent.ACTION_POINTER_UP) return
+            event.actionMasked == MotionEvent.ACTION_POINTER_UP
+        ) {
+            return
+        }
         val point = screenPoint(event, index)
         dispatchToTool(
             ToolEvent.Move(
@@ -427,8 +442,8 @@ class CanvasView(context: Context) : View(context), ToolContext {
                 modifiers = modifiersOf(event),
                 pressure = pressureOf(event, index),
                 tilt = tiltOf(event, index),
-                timestamp = event.eventTime
-            )
+                timestamp = event.eventTime,
+            ),
         )
     }
 
@@ -458,14 +473,16 @@ class CanvasView(context: Context) : View(context), ToolContext {
             shift = meta and KeyEvent.META_SHIFT_ON != 0 || touchShiftPointerId >= 0,
             ctrl = meta and KeyEvent.META_CTRL_ON != 0,
             alt = meta and KeyEvent.META_ALT_ON != 0,
-            meta = meta and KeyEvent.META_META_ON != 0
+            meta = meta and KeyEvent.META_META_ON != 0,
         )
     }
 
     private fun pressureOf(event: MotionEvent, index: Int): Float =
         if (event.getToolType(index) == MotionEvent.TOOL_TYPE_STYLUS) {
             event.getPressure(index).coerceIn(0f, 1f)
-        } else 1f
+        } else {
+            1f
+        }
 
     private fun tiltOf(event: MotionEvent, index: Int): Float =
         event.getAxisValue(MotionEvent.AXIS_TILT, index)

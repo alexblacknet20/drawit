@@ -8,15 +8,19 @@ import kotlin.math.sin
  * Used for view transforms, object transforms, etc.
  */
 data class Matrix(
-    val a: Float = 1f, val c: Float = 0f, val e: Float = 0f,
-    val b: Float = 0f, val d: Float = 1f, val f: Float = 0f
+    val a: Float = 1f,
+    val c: Float = 0f,
+    val e: Float = 0f,
+    val b: Float = 0f,
+    val d: Float = 1f,
+    val f: Float = 0f,
 ) {
     val isIdentity: Boolean
         get() = a == 1f && b == 0f && c == 0f && d == 1f && e == 0f && f == 0f
 
     fun transform(point: Point): Point = Point(
         a * point.x + c * point.y + e,
-        b * point.x + d * point.y + f
+        b * point.x + d * point.y + f,
     )
 
     fun transform(rect: Rect): Rect {
@@ -33,7 +37,7 @@ data class Matrix(
         e = a * other.e + c * other.f + e,
         b = b * other.a + d * other.b,
         d = b * other.c + d * other.d,
-        f = b * other.e + d * other.f + f
+        f = b * other.e + d * other.f + f,
     )
 
     fun invert(): Matrix {
@@ -46,7 +50,7 @@ data class Matrix(
             e = (c * f - d * e) * invDet,
             b = -b * invDet,
             d = a * invDet,
-            f = (b * e - a * f) * invDet
+            f = (b * e - a * f) * invDet,
         )
     }
 

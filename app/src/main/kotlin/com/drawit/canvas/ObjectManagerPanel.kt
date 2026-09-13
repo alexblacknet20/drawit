@@ -35,7 +35,7 @@ import com.drawit.core.document.Shape
 @Composable
 fun ObjectManagerPanel(
     editorState: EditorState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val page = editorState.document.activePage
 
@@ -44,7 +44,7 @@ fun ObjectManagerPanel(
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Text(page.name, style = MaterialTheme.typography.titleSmall)
             IconButton(onClick = { editorState.addLayer() }) {
@@ -65,7 +65,7 @@ fun ObjectManagerPanel(
                     onSelectShape = { id, additive ->
                         val cur = editorState.selectedShapeIds
                         editorState.select(
-                            if (additive) (if (id in cur) cur - id else cur + id) else setOf(id)
+                            if (additive) (if (id in cur) cur - id else cur + id) else setOf(id),
                         )
                     },
                     onToggleShapeVisible = { shape ->
@@ -75,7 +75,7 @@ fun ObjectManagerPanel(
                         editorState.setShapeLocked(shape.id, !shape.locked)
                     },
                     onRaise = { id -> editorState.moveShapeInLayer(id, +1) },
-                    onLower = { id -> editorState.moveShapeInLayer(id, -1) }
+                    onLower = { id -> editorState.moveShapeInLayer(id, -1) },
                 )
             }
         }
@@ -94,7 +94,7 @@ private fun LayerBlock(
     onToggleShapeVisible: (Shape) -> Unit,
     onToggleShapeLock: (Shape) -> Unit,
     onRaise: (String) -> Unit,
-    onLower: (String) -> Unit
+    onLower: (String) -> Unit,
 ) {
     Column {
         // Layer header
@@ -103,38 +103,48 @@ private fun LayerBlock(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onSelectLayer)
-                .padding(vertical = 4.dp)
+                .padding(vertical = 4.dp),
         ) {
             IconButton(onClick = onToggleVisible, modifier = Modifier.size(28.dp)) {
                 Icon(
                     if (layer.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                     "Layer visibility",
                     modifier = Modifier.size(18.dp),
-                    tint = if (layer.visible) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    tint = if (layer.visible) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    },
                 )
             }
             IconButton(onClick = onToggleLock, modifier = Modifier.size(28.dp)) {
                 Icon(
-                    Icons.Default.Lock, "Layer lock",
+                    Icons.Default.Lock,
+                    "Layer lock",
                     modifier = Modifier.size(16.dp),
-                    tint = if (layer.locked) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    tint = if (layer.locked) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    },
                 )
             }
             Text(
                 layer.name,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (isActive) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurface,
+                color = if (isActive) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
             Text(
                 "${layer.shapes.size}",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -148,7 +158,7 @@ private fun LayerBlock(
                     onToggleVisible = { onToggleShapeVisible(shape) },
                     onToggleLock = { onToggleShapeLock(shape) },
                     onRaise = { onRaise(shape.id) },
-                    onLower = { onLower(shape.id) }
+                    onLower = { onLower(shape.id) },
                 )
             }
         }
@@ -163,7 +173,7 @@ private fun ShapeRow(
     onToggleVisible: () -> Unit,
     onToggleLock: () -> Unit,
     onRaise: () -> Unit,
-    onLower: () -> Unit
+    onLower: () -> Unit,
 ) {
     Column {
         Row(
@@ -172,15 +182,18 @@ private fun ShapeRow(
                 .fillMaxWidth()
                 .padding(start = 32.dp)
                 .clickable { onSelect(false) }
-                .padding(vertical = 2.dp)
+                .padding(vertical = 2.dp),
         ) {
             IconButton(onClick = onToggleVisible, modifier = Modifier.size(24.dp)) {
                 Icon(
                     if (shape.visible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                     "Object visibility",
                     modifier = Modifier.size(15.dp),
-                    tint = if (shape.visible) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    tint = if (shape.visible) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    },
                 )
             }
             IconButton(onClick = onToggleLock, modifier = Modifier.size(24.dp)) {
@@ -188,19 +201,26 @@ private fun ShapeRow(
                     Icons.Default.Lock,
                     "Object lock",
                     modifier = Modifier.size(14.dp),
-                    tint = if (shape.locked) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+                    tint = if (shape.locked) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+                    },
                 )
             }
             Text(
                 shape.name,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (selected) MaterialTheme.colorScheme.primary
-                else if (!shape.visible) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.onSurface,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else if (!shape.visible) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
             if (selected) {
                 IconButton(onClick = onRaise, modifier = Modifier.size(24.dp)) {
@@ -221,7 +241,7 @@ private fun ShapeRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 84.dp, top = 1.dp, bottom = 1.dp)
+                        .padding(start = 84.dp, top = 1.dp, bottom = 1.dp),
                 )
             }
         }

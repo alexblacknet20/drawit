@@ -27,49 +27,49 @@ object PdfExporter {
         output: OutputStream,
         imageStore: ImageStore,
         fontManager: FontManager,
-        pageIndices: List<Int> = document.pages.indices.toList()
+        pageIndices: List<Int> = document.pages.indices.toList(),
     ) {
         val pdf = PdfDocument()
         val renderer = SkiaRenderer(
             imageStore = imageStore,
             fontManager = fontManager,
-            showPageDecorations = false
+            showPageDecorations = false,
         )
         try {
             pageIndices
                 .distinct()
                 .filter { it in document.pages.indices }
                 .forEachIndexed { outputIndex, documentIndex ->
-                val page = document.pages[documentIndex]
-                val mediaWidthMm = page.width + page.bleed.left + page.bleed.right +
-                    MARK_MARGIN_MM * 2f
-                val mediaHeightMm = page.height + page.bleed.top + page.bleed.bottom +
-                    MARK_MARGIN_MM * 2f
-                val pageInfo = PdfDocument.PageInfo.Builder(
-                    (mediaWidthMm * POINTS_PER_MM).roundToInt().coerceAtLeast(1),
-                    (mediaHeightMm * POINTS_PER_MM).roundToInt().coerceAtLeast(1),
-                    outputIndex + 1
-                ).create()
-                val pdfPage = pdf.startPage(pageInfo)
-                val canvas = pdfPage.canvas
-                canvas.drawColor(android.graphics.Color.WHITE)
+                    val page = document.pages[documentIndex]
+                    val mediaWidthMm = page.width + page.bleed.left + page.bleed.right +
+                        MARK_MARGIN_MM * 2f
+                    val mediaHeightMm = page.height + page.bleed.top + page.bleed.bottom +
+                        MARK_MARGIN_MM * 2f
+                    val pageInfo = PdfDocument.PageInfo.Builder(
+                        (mediaWidthMm * POINTS_PER_MM).roundToInt().coerceAtLeast(1),
+                        (mediaHeightMm * POINTS_PER_MM).roundToInt().coerceAtLeast(1),
+                        outputIndex + 1,
+                    ).create()
+                    val pdfPage = pdf.startPage(pageInfo)
+                    val canvas = pdfPage.canvas
+                    canvas.drawColor(android.graphics.Color.WHITE)
 
-                canvas.save()
-                canvas.translate(
-                    (MARK_MARGIN_MM + page.bleed.left) * POINTS_PER_MM,
-                    (MARK_MARGIN_MM + page.bleed.top) * POINTS_PER_MM
-                )
-                canvas.scale(POINTS_PER_MM, POINTS_PER_MM)
-                renderer.setTarget(canvas)
-                renderer.render(
-                    document.copy(activePageIndex = documentIndex),
-                    Matrix.IDENTITY
-                )
-                canvas.restore()
+                    canvas.save()
+                    canvas.translate(
+                        (MARK_MARGIN_MM + page.bleed.left) * POINTS_PER_MM,
+                        (MARK_MARGIN_MM + page.bleed.top) * POINTS_PER_MM,
+                    )
+                    canvas.scale(POINTS_PER_MM, POINTS_PER_MM)
+                    renderer.setTarget(canvas)
+                    renderer.render(
+                        document.copy(activePageIndex = documentIndex),
+                        Matrix.IDENTITY,
+                    )
+                    canvas.restore()
 
-                drawCropMarks(canvas, page)
-                pdf.finishPage(pdfPage)
-            }
+                    drawCropMarks(canvas, page)
+                    pdf.finishPage(pdfPage)
+                }
             pdf.writeTo(output)
         } finally {
             renderer.dispose()

@@ -7,9 +7,11 @@ import com.drawit.core.color.Color
  */
 data class GradientStop(
     val position: Float, // 0.0–1.0
-    val color: Color
+    val color: Color,
 ) {
-    init { require(position in 0f..1f) { "Stop position must be 0..1" } }
+    init {
+        require(position in 0f..1f) { "Stop position must be 0..1" }
+    }
 }
 
 /**
@@ -24,7 +26,7 @@ sealed class Fill {
     data class Gradient(
         val type: Type,
         val stops: List<GradientStop>,
-        val angleDegrees: Float = 0f
+        val angleDegrees: Float = 0f,
     ) : Fill() {
         enum class Type(val displayName: String) { LINEAR("Linear"), RADIAL("Radial") }
 
@@ -36,7 +38,7 @@ sealed class Fill {
         fun sortedStops(): List<GradientStop> = stops.sortedBy { it.position }
 
         fun reversed(): Gradient = copy(
-            stops = stops.map { GradientStop(1f - it.position, it.color) }.sortedBy { it.position }
+            stops = stops.map { GradientStop(1f - it.position, it.color) }.sortedBy { it.position },
         )
 
         companion object {
@@ -53,10 +55,14 @@ sealed class Fill {
     data class Pattern(
         val imageId: String,
         val placement: Placement = Placement.TILE,
-        val tileScale: Float = 1f // additional scale for TILE mode
+        // additional scale for TILE mode
+        val tileScale: Float = 1f,
     ) : Fill() {
         enum class Placement(val displayName: String) {
-            TILE("Tile"), FIT("Fit"), FILL("Fill"), STRETCH("Stretch")
+            TILE("Tile"),
+            FIT("Fit"),
+            FILL("Fill"),
+            STRETCH("Stretch"),
         }
     }
 }

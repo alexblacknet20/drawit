@@ -68,7 +68,9 @@ class SelectTool(private val state: EditorState) : Tool {
     override val isConstrainableGestureActive: Boolean
         get() = isRotating || resizeHandle != null || skewControl != null
 
-    override fun activate(context: ToolContext) { this.context = context }
+    override fun activate(context: ToolContext) {
+        this.context = context
+    }
     override fun deactivate() {
         cancelDrag()
         cancelRotate()
@@ -139,7 +141,7 @@ class SelectTool(private val state: EditorState) : Tool {
         if (isRotating) {
             val currentAngle = atan2(
                 event.position.y - rotationCenter.y,
-                event.position.x - rotationCenter.x
+                event.position.x - rotationCenter.x,
             )
             val rawAngle = normalizeAngle(currentAngle - rotationStartAngle)
             accumulatedAngle = if (event.modifiers.shift) snap15(rawAngle) else rawAngle
@@ -190,14 +192,23 @@ class SelectTool(private val state: EditorState) : Tool {
             finishSkew()
             return true
         }
-        if (isRotating) { finishRotate(); return true }
-        if (resizeHandle != null) { finishResize(); return true }
-        if (isDragging && movedShapeIds.isNotEmpty()) commitDrag(currentDragDelta)
-        else if (!isDragging) {
+        if (isRotating) {
+            finishRotate()
+            return true
+        }
+        if (resizeHandle != null) {
+            finishResize()
+            return true
+        }
+        if (isDragging && movedShapeIds.isNotEmpty()) {
+            commitDrag(currentDragDelta)
+        } else if (!isDragging) {
             val hit = hitTest(event.position)
-            if (hit == null && !event.modifiers.shift) state.clearSelection()
-            else if (hit != null && event.modifiers.shift) {
-                val cur = state.selectedShapeIds; state.select(if (hit in cur) cur - hit else cur + hit)
+            if (hit == null && !event.modifiers.shift) {
+                state.clearSelection()
+            } else if (hit != null && event.modifiers.shift) {
+                val cur = state.selectedShapeIds
+                state.select(if (hit in cur) cur - hit else cur + hit)
             }
         }
         marqueeRect?.let { mr ->
@@ -259,7 +270,7 @@ class SelectTool(private val state: EditorState) : Tool {
                 original.copy(sweepDegrees = sweep.coerceIn(0.1f, 360f))
             }
             EllipseControl.RATIO -> original.copy(
-                arcRatio = sqrt(nx * nx + ny * ny).coerceIn(0f, 0.95f)
+                arcRatio = sqrt(nx * nx + ny * ny).coerceIn(0f, 0.95f),
             )
         }
         ellipseResult = updated
@@ -294,7 +305,7 @@ class SelectTool(private val state: EditorState) : Tool {
     }
 
     private fun ellipseControlPoints(
-        ellipse: Shape.EllipseShape
+        ellipse: Shape.EllipseShape,
     ): List<Pair<EllipseControl, Point>> {
         val rect = ellipse.rect
         val start = Math.toRadians(ellipse.startAngleDegrees.toDouble()).toFloat()
@@ -302,7 +313,7 @@ class SelectTool(private val state: EditorState) : Tool {
 
         fun localPoint(angle: Float, ratio: Float): Point = Point(
             rect.centerX + cos(angle) * rect.width / 2f * ratio,
-            rect.centerY + sin(angle) * rect.height / 2f * ratio
+            rect.centerY + sin(angle) * rect.height / 2f * ratio,
         )
 
         val startPoint = localPoint(start, 1f)
@@ -310,12 +321,12 @@ class SelectTool(private val state: EditorState) : Tool {
         val sweepPoint = localPoint(start + sweep, sweepRadius)
         val ratioPoint = localPoint(
             start + sweep / 2f,
-            ellipse.arcRatio.coerceAtLeast(0.18f)
+            ellipse.arcRatio.coerceAtLeast(0.18f),
         )
         return listOf(
             EllipseControl.START to ellipse.transform.transform(startPoint),
             EllipseControl.SWEEP to ellipse.transform.transform(sweepPoint),
-            EllipseControl.RATIO to ellipse.transform.transform(ratioPoint)
+            EllipseControl.RATIO to ellipse.transform.transform(ratioPoint),
         )
     }
 
@@ -418,24 +429,24 @@ class SelectTool(private val state: EditorState) : Tool {
     private fun skewControlPoints(cage: TransformCage): List<Pair<SkewControl, Point>> =
         listOf(
             SkewControl.HORIZONTAL to cage.topMid,
-            SkewControl.VERTICAL to cage.rightMid
+            SkewControl.VERTICAL to cage.rightMid,
         )
 
     // Rotation
-    private fun hitTestRotationHandle(p: Point): Pair<Point,Point>? {
+    private fun hitTestRotationHandle(p: Point): Pair<Point, Point>? {
         val cage = transformCage() ?: return null
         val tol = context?.hitTolerance ?: 2f
         val handle = rotationHandle(cage, tol)
         return if (p.distanceTo(handle) <= tol * 1.4f) handle to cage.center else null
     }
 
-    private fun startRotate(cPos: Pair<Point,Point>) {
+    private fun startRotate(cPos: Pair<Point, Point>) {
         isRotating = true
         rotationOriginals = state.selectedShapes().associate { it.id to it.transform }
         rotationCenter = cPos.second
         rotationStartAngle = atan2(
             cPos.first.y - rotationCenter.y,
-            cPos.first.x - rotationCenter.x
+            cPos.first.x - rotationCenter.x,
         )
         accumulatedAngle = 0f
     }
@@ -489,7 +500,7 @@ class SelectTool(private val state: EditorState) : Tool {
 
     private fun restoreTransforms(
         source: com.drawit.core.document.Document,
-        transforms: Map<String, Matrix>
+        transforms: Map<String, Matrix>,
     ): com.drawit.core.document.Document {
         var result = source
         transforms.forEach { (id, original) ->
@@ -641,7 +652,7 @@ class SelectTool(private val state: EditorState) : Tool {
                 val localScaling = Matrix.scale(sx, sy, localPivot)
                 doc = doc.replaceShape(
                     singleId,
-                    shape.withTransform(original * localScaling)
+                    shape.withTransform(original * localScaling),
                 )
             }
             return doc
@@ -673,8 +684,8 @@ class SelectTool(private val state: EditorState) : Tool {
                             result = result.replaceShape(
                                 singleId,
                                 shape.withTransform(
-                                    original * Matrix.scale(sx, sy, localPivot)
-                                )
+                                    original * Matrix.scale(sx, sy, localPivot),
+                                ),
                             )
                         }
                     }
@@ -743,12 +754,12 @@ class SelectTool(private val state: EditorState) : Tool {
         val movingX = floatArrayOf(
             bounds.left + raw.x,
             bounds.centerX + raw.x,
-            bounds.right + raw.x
+            bounds.right + raw.x,
         )
         val movingY = floatArrayOf(
             bounds.top + raw.y,
             bounds.centerY + raw.y,
-            bounds.bottom + raw.y
+            bounds.bottom + raw.y,
         )
         val targetX = mutableListOf(0f, page.width / 2f, page.width)
         val targetY = mutableListOf(0f, page.height / 2f, page.height)
@@ -769,14 +780,14 @@ class SelectTool(private val state: EditorState) : Tool {
         snapGuideY = bestY?.second
         return Point(
             raw.x + (bestX?.first ?: 0f),
-            raw.y + (bestY?.first ?: 0f)
+            raw.y + (bestY?.first ?: 0f),
         )
     }
 
     private fun closestSnap(
         moving: FloatArray,
         targets: List<Float>,
-        tolerance: Float
+        tolerance: Float,
     ): Pair<Float, Float>? {
         var bestDistance = tolerance + 1f
         var best: Pair<Float, Float>? = null
@@ -818,8 +829,8 @@ class SelectTool(private val state: EditorState) : Tool {
 
     private fun hitTest(p: Point): String? {
         val tol = context?.hitTolerance ?: 1f
-        val hr = Rect(p.x-tol,p.y-tol,p.x+tol,p.y+tol)
-        return state.document.activePage.layers.asReversed().filter{it.visible&&!it.locked}.flatMap{it.shapes.asReversed()}.find{it.visible&&!it.locked&&hr.intersects(it.bounds())}?.id
+        val hr = Rect(p.x - tol, p.y - tol, p.x + tol, p.y + tol)
+        return state.document.activePage.layers.asReversed().filter { it.visible && !it.locked }.flatMap { it.shapes.asReversed() }.find { it.visible && !it.locked && hr.intersects(it.bounds()) }?.id
     }
 
     override fun drawOverlay(canvas: Any, context: ToolContext) {
@@ -840,9 +851,29 @@ class SelectTool(private val state: EditorState) : Tool {
             c.drawLine(left.x, left.y, right.x, right.y, guidePaint)
         }
         marqueeRect?.let { rect ->
-            val tl=context.documentToScreen(rect.topLeft); val br=context.documentToScreen(rect.bottomRight)
-            c.drawRect(tl.x,tl.y,br.x,br.y,android.graphics.Paint().apply{color=android.graphics.Color.argb(40,0,120,215);style=android.graphics.Paint.Style.FILL})
-            c.drawRect(tl.x,tl.y,br.x,br.y,android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply{color=android.graphics.Color.rgb(0,120,215);style=android.graphics.Paint.Style.STROKE;strokeWidth=1f})
+            val tl = context.documentToScreen(rect.topLeft)
+            val br = context.documentToScreen(rect.bottomRight)
+            c.drawRect(
+                tl.x,
+                tl.y,
+                br.x,
+                br.y,
+                android.graphics.Paint().apply {
+                    color = android.graphics.Color.argb(40, 0, 120, 215)
+                    style = android.graphics.Paint.Style.FILL
+                },
+            )
+            c.drawRect(
+                tl.x,
+                tl.y,
+                br.x,
+                br.y,
+                android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = android.graphics.Color.rgb(0, 120, 215)
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = 1f
+                },
+            )
         }
         transformCage()?.let { cage ->
             val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
@@ -868,22 +899,28 @@ class SelectTool(private val state: EditorState) : Tool {
                     android.graphics.Paint(paint).apply {
                         style = android.graphics.Paint.Style.FILL
                         color = android.graphics.Color.WHITE
-                    })
+                    },
+                )
                 c.drawRect(
                     screen.x - handleSize,
                     screen.y - handleSize,
                     screen.x + handleSize,
                     screen.y + handleSize,
-                    paint
+                    paint,
                 )
             }
             val handle = context.documentToScreen(rotationHandle(cage, context.hitTolerance))
             val top = context.documentToScreen(cage.topMid)
             c.drawLine(top.x, top.y, handle.x, handle.y, paint)
-            c.drawCircle(handle.x, handle.y, handleSize + 1f, android.graphics.Paint(paint).apply {
-                style = android.graphics.Paint.Style.FILL
-                color = android.graphics.Color.WHITE
-            })
+            c.drawCircle(
+                handle.x,
+                handle.y,
+                handleSize + 1f,
+                android.graphics.Paint(paint).apply {
+                    style = android.graphics.Paint.Style.FILL
+                    color = android.graphics.Color.WHITE
+                },
+            )
             c.drawCircle(handle.x, handle.y, handleSize + 1f, paint)
 
             if (state.selectedShapes().size == 1) {
@@ -898,14 +935,17 @@ class SelectTool(private val state: EditorState) : Tool {
                         close()
                     }
                     val active = control == skewControl
-                    c.drawPath(diamond, android.graphics.Paint(paint).apply {
-                        style = android.graphics.Paint.Style.FILL
-                        color = if (active) {
-                            android.graphics.Color.rgb(222, 45, 125)
-                        } else {
-                            android.graphics.Color.rgb(255, 145, 0)
-                        }
-                    })
+                    c.drawPath(
+                        diamond,
+                        android.graphics.Paint(paint).apply {
+                            style = android.graphics.Paint.Style.FILL
+                            color = if (active) {
+                                android.graphics.Color.rgb(222, 45, 125)
+                            } else {
+                                android.graphics.Color.rgb(255, 145, 0)
+                            }
+                        },
+                    )
                     c.drawPath(diamond, paint)
                 }
             }
@@ -915,7 +955,7 @@ class SelectTool(private val state: EditorState) : Tool {
         if (ellipse != null) {
             val handleSize = state.controlHandleSizePx.coerceIn(3f, 14f)
             val center = context.documentToScreen(
-                ellipse.transform.transform(ellipse.rect.center)
+                ellipse.transform.transform(ellipse.rect.center),
             )
             val linePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 color = android.graphics.Color.argb(150, 0, 120, 215)
@@ -941,7 +981,7 @@ class SelectTool(private val state: EditorState) : Tool {
                         } else {
                             android.graphics.Color.rgb(0, 120, 215)
                         }
-                    }
+                    },
                 )
                 val label = when (control) {
                     EllipseControl.START -> "S"
@@ -952,7 +992,7 @@ class SelectTool(private val state: EditorState) : Tool {
                     label,
                     screen.x,
                     screen.y - (labelPaint.ascent() + labelPaint.descent()) / 2f,
-                    labelPaint
+                    labelPaint,
                 )
             }
         }

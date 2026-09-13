@@ -13,7 +13,7 @@ import kotlin.math.tan
 enum class CornerStyle(val displayName: String) {
     ROUND("Round"),
     CHAMFER("Chamfer"),
-    INSET("Inset")
+    INSET("Inset"),
 }
 
 /**
@@ -21,11 +21,12 @@ enum class CornerStyle(val displayName: String) {
  */
 data class Stroke(
     val color: Color = Color.BLACK,
-    val width: Float = 1f,          // in document units (mm)
+    val width: Float = 1f, // in document units (mm)
     val cap: Cap = Cap.BUTT,
     val join: Join = Join.MITER,
     val miterLimit: Float = 4f,
-    val dashPattern: List<Float> = emptyList() // alternating on/off lengths (mm)
+    // alternating on/off lengths (mm)
+    val dashPattern: List<Float> = emptyList(),
 ) {
     enum class Cap { BUTT, ROUND, SQUARE }
     enum class Join { MITER, ROUND, BEVEL }
@@ -35,7 +36,7 @@ data class Stroke(
             "Solid" to emptyList(),
             "Dashed" to listOf(4f, 2f),
             "Dotted" to listOf(0.5f, 2f),
-            "Dash-Dot" to listOf(4f, 2f, 0.5f, 2f)
+            "Dash-Dot" to listOf(4f, 2f, 0.5f, 2f),
         )
     }
 }
@@ -46,14 +47,14 @@ data class ShadowEffect(
     val offsetY: Float = 2f,
     val blurRadius: Float = 3f,
     val color: Color = Color.BLACK,
-    val opacity: Float = 0.45f
+    val opacity: Float = 0.45f,
 )
 
 data class EffectStack(
     val dropShadow: ShadowEffect? = null,
     val edgeBlurRadius: Float = 0f,
     val innerShadow: ShadowEffect? = null,
-    val noiseAmount: Float = 0f
+    val noiseAmount: Float = 0f,
 )
 
 /**
@@ -68,7 +69,7 @@ sealed class Shape {
     abstract val stroke: Stroke?
     abstract val visible: Boolean
     abstract val locked: Boolean
-    abstract val opacity: Float          // 0.0–1.0, multiplies fill+stroke alpha
+    abstract val opacity: Float // 0.0–1.0, multiplies fill+stroke alpha
     abstract val blendMode: BlendMode
     abstract val effects: EffectStack
 
@@ -94,7 +95,7 @@ sealed class Shape {
         locked: Boolean = this.locked,
         opacity: Float = this.opacity,
         blendMode: BlendMode = this.blendMode,
-        effects: EffectStack = this.effects
+        effects: EffectStack = this.effects,
     ): Shape
 
     fun withTransform(t: Matrix): Shape = copyWith(transform = t)
@@ -121,17 +122,26 @@ sealed class Shape {
         override val locked: Boolean = false,
         override val opacity: Float = 1f,
         override val blendMode: BlendMode = BlendMode.NORMAL,
-        override val effects: EffectStack = EffectStack()
+        override val effects: EffectStack = EffectStack(),
     ) : Shape() {
         override fun localBounds(): Rect = pathData.bounds()
         override fun localPath(): PathData = pathData
         override fun copyWith(
-            id: String, name: String, transform: Matrix, fill: Fill,
-            stroke: Stroke?, visible: Boolean, locked: Boolean,
-            opacity: Float, blendMode: BlendMode, effects: EffectStack
-        ) = copy(id = id, name = name, transform = transform, fill = fill,
+            id: String,
+            name: String,
+            transform: Matrix,
+            fill: Fill,
+            stroke: Stroke?,
+            visible: Boolean,
+            locked: Boolean,
+            opacity: Float,
+            blendMode: BlendMode,
+            effects: EffectStack,
+        ) = copy(
+            id = id, name = name, transform = transform, fill = fill,
             stroke = stroke, visible = visible, locked = locked,
-            opacity = opacity, blendMode = blendMode)
+            opacity = opacity, blendMode = blendMode,
+        )
     }
 
     /** Parametric rectangle (keeps corner radius editable). */
@@ -148,17 +158,26 @@ sealed class Shape {
         override val locked: Boolean = false,
         override val opacity: Float = 1f,
         override val blendMode: BlendMode = BlendMode.NORMAL,
-        override val effects: EffectStack = EffectStack()
+        override val effects: EffectStack = EffectStack(),
     ) : Shape() {
         override fun localBounds(): Rect = rect
         override fun localPath(): PathData = corneredRectPath(rect, cornerRadius, cornerStyle)
         override fun copyWith(
-            id: String, name: String, transform: Matrix, fill: Fill,
-            stroke: Stroke?, visible: Boolean, locked: Boolean,
-            opacity: Float, blendMode: BlendMode, effects: EffectStack
-        ) = copy(id = id, name = name, transform = transform, fill = fill,
+            id: String,
+            name: String,
+            transform: Matrix,
+            fill: Fill,
+            stroke: Stroke?,
+            visible: Boolean,
+            locked: Boolean,
+            opacity: Float,
+            blendMode: BlendMode,
+            effects: EffectStack,
+        ) = copy(
+            id = id, name = name, transform = transform, fill = fill,
             stroke = stroke, visible = visible, locked = locked,
-            opacity = opacity, blendMode = blendMode, effects = effects)
+            opacity = opacity, blendMode = blendMode, effects = effects,
+        )
     }
 
     /** Parametric ellipse. */
@@ -179,22 +198,31 @@ sealed class Shape {
         override val locked: Boolean = false,
         override val opacity: Float = 1f,
         override val blendMode: BlendMode = BlendMode.NORMAL,
-        override val effects: EffectStack = EffectStack()
+        override val effects: EffectStack = EffectStack(),
     ) : Shape() {
         override fun localBounds(): Rect = rect
         override fun localPath(): PathData = ellipseArcPath(
             rect = rect,
             startDegrees = startAngleDegrees,
             sweepDegrees = sweepDegrees,
-            innerRatio = arcRatio
+            innerRatio = arcRatio,
         )
         override fun copyWith(
-            id: String, name: String, transform: Matrix, fill: Fill,
-            stroke: Stroke?, visible: Boolean, locked: Boolean,
-            opacity: Float, blendMode: BlendMode, effects: EffectStack
-        ) = copy(id = id, name = name, transform = transform, fill = fill,
+            id: String,
+            name: String,
+            transform: Matrix,
+            fill: Fill,
+            stroke: Stroke?,
+            visible: Boolean,
+            locked: Boolean,
+            opacity: Float,
+            blendMode: BlendMode,
+            effects: EffectStack,
+        ) = copy(
+            id = id, name = name, transform = transform, fill = fill,
             stroke = stroke, visible = visible, locked = locked,
-            opacity = opacity, blendMode = blendMode, effects = effects)
+            opacity = opacity, blendMode = blendMode, effects = effects,
+        )
     }
 
     /** Parametric regular polygon fitted into [rect]. */
@@ -211,7 +239,7 @@ sealed class Shape {
         override val locked: Boolean = false,
         override val opacity: Float = 1f,
         override val blendMode: BlendMode = BlendMode.NORMAL,
-        override val effects: EffectStack = EffectStack()
+        override val effects: EffectStack = EffectStack(),
     ) : Shape() {
         override fun localBounds(): Rect = rect
         override fun localPath(): PathData {
@@ -222,7 +250,7 @@ sealed class Shape {
                 val angle = rotation + (2f * PI.toFloat() * index / count)
                 val point = com.drawit.core.geometry.Point(
                     rect.centerX + cos(angle) * rect.width / 2f,
-                    rect.centerY + sin(angle) * rect.height / 2f
+                    rect.centerY + sin(angle) * rect.height / 2f,
                 )
                 path = if (index == 0) path.moveTo(point) else path.lineTo(point)
             }
@@ -230,13 +258,20 @@ sealed class Shape {
         }
 
         override fun copyWith(
-            id: String, name: String, transform: Matrix, fill: Fill,
-            stroke: Stroke?, visible: Boolean, locked: Boolean,
-            opacity: Float, blendMode: BlendMode, effects: EffectStack
+            id: String,
+            name: String,
+            transform: Matrix,
+            fill: Fill,
+            stroke: Stroke?,
+            visible: Boolean,
+            locked: Boolean,
+            opacity: Float,
+            blendMode: BlendMode,
+            effects: EffectStack,
         ) = copy(
             id = id, name = name, transform = transform, fill = fill,
             stroke = stroke, visible = visible, locked = locked,
-            opacity = opacity, blendMode = blendMode, effects = effects
+            opacity = opacity, blendMode = blendMode, effects = effects,
         )
     }
 
@@ -254,19 +289,28 @@ sealed class Shape {
         override val locked: Boolean = false,
         override val opacity: Float = 1f,
         override val blendMode: BlendMode = BlendMode.NORMAL,
-        override val effects: EffectStack = EffectStack()
+        override val effects: EffectStack = EffectStack(),
     ) : Shape() {
         override fun localBounds(): Rect =
             clipPath?.bounds()
                 ?: Rect.unionAll(children.filter { it.visible }.map { it.bounds() })
         override fun localPath(): PathData = clipPath ?: PathData.EMPTY
         override fun copyWith(
-            id: String, name: String, transform: Matrix, fill: Fill,
-            stroke: Stroke?, visible: Boolean, locked: Boolean,
-            opacity: Float, blendMode: BlendMode, effects: EffectStack
-        ) = copy(id = id, name = name, transform = transform, fill = fill,
+            id: String,
+            name: String,
+            transform: Matrix,
+            fill: Fill,
+            stroke: Stroke?,
+            visible: Boolean,
+            locked: Boolean,
+            opacity: Float,
+            blendMode: BlendMode,
+            effects: EffectStack,
+        ) = copy(
+            id = id, name = name, transform = transform, fill = fill,
             stroke = stroke, visible = visible, locked = locked,
-            opacity = opacity, blendMode = blendMode, effects = effects)
+            opacity = opacity, blendMode = blendMode, effects = effects,
+        )
     }
 
     companion object {
@@ -275,7 +319,7 @@ sealed class Shape {
         private fun corneredRectPath(
             rect: Rect,
             requestedRadius: Float,
-            style: CornerStyle
+            style: CornerStyle,
         ): PathData {
             val radius = requestedRadius.coerceIn(0f, minOf(rect.width, rect.height) / 2f)
             if (radius <= 0.0001f) return PathData.rect(rect)
@@ -285,40 +329,42 @@ sealed class Shape {
             val right = rect.right
             val bottom = rect.bottom
             return when (style) {
-                CornerStyle.CHAMFER -> PathData.EMPTY
-                    .moveTo(com.drawit.core.geometry.Point(left + radius, top))
-                    .lineTo(com.drawit.core.geometry.Point(right - radius, top))
-                    .lineTo(com.drawit.core.geometry.Point(right, top + radius))
-                    .lineTo(com.drawit.core.geometry.Point(right, bottom - radius))
-                    .lineTo(com.drawit.core.geometry.Point(right - radius, bottom))
-                    .lineTo(com.drawit.core.geometry.Point(left + radius, bottom))
-                    .lineTo(com.drawit.core.geometry.Point(left, bottom - radius))
-                    .lineTo(com.drawit.core.geometry.Point(left, top + radius))
-                    .close()
+                CornerStyle.CHAMFER ->
+                    PathData.EMPTY
+                        .moveTo(com.drawit.core.geometry.Point(left + radius, top))
+                        .lineTo(com.drawit.core.geometry.Point(right - radius, top))
+                        .lineTo(com.drawit.core.geometry.Point(right, top + radius))
+                        .lineTo(com.drawit.core.geometry.Point(right, bottom - radius))
+                        .lineTo(com.drawit.core.geometry.Point(right - radius, bottom))
+                        .lineTo(com.drawit.core.geometry.Point(left + radius, bottom))
+                        .lineTo(com.drawit.core.geometry.Point(left, bottom - radius))
+                        .lineTo(com.drawit.core.geometry.Point(left, top + radius))
+                        .close()
 
-                CornerStyle.INSET -> PathData.EMPTY
-                    .moveTo(com.drawit.core.geometry.Point(left + radius, top))
-                    .lineTo(com.drawit.core.geometry.Point(right - radius, top))
-                    .quadTo(
-                        com.drawit.core.geometry.Point(right - radius, top + radius),
-                        com.drawit.core.geometry.Point(right, top + radius)
-                    )
-                    .lineTo(com.drawit.core.geometry.Point(right, bottom - radius))
-                    .quadTo(
-                        com.drawit.core.geometry.Point(right - radius, bottom - radius),
-                        com.drawit.core.geometry.Point(right - radius, bottom)
-                    )
-                    .lineTo(com.drawit.core.geometry.Point(left + radius, bottom))
-                    .quadTo(
-                        com.drawit.core.geometry.Point(left + radius, bottom - radius),
-                        com.drawit.core.geometry.Point(left, bottom - radius)
-                    )
-                    .lineTo(com.drawit.core.geometry.Point(left, top + radius))
-                    .quadTo(
-                        com.drawit.core.geometry.Point(left + radius, top + radius),
-                        com.drawit.core.geometry.Point(left + radius, top)
-                    )
-                    .close()
+                CornerStyle.INSET ->
+                    PathData.EMPTY
+                        .moveTo(com.drawit.core.geometry.Point(left + radius, top))
+                        .lineTo(com.drawit.core.geometry.Point(right - radius, top))
+                        .quadTo(
+                            com.drawit.core.geometry.Point(right - radius, top + radius),
+                            com.drawit.core.geometry.Point(right, top + radius),
+                        )
+                        .lineTo(com.drawit.core.geometry.Point(right, bottom - radius))
+                        .quadTo(
+                            com.drawit.core.geometry.Point(right - radius, bottom - radius),
+                            com.drawit.core.geometry.Point(right - radius, bottom),
+                        )
+                        .lineTo(com.drawit.core.geometry.Point(left + radius, bottom))
+                        .quadTo(
+                            com.drawit.core.geometry.Point(left + radius, bottom - radius),
+                            com.drawit.core.geometry.Point(left, bottom - radius),
+                        )
+                        .lineTo(com.drawit.core.geometry.Point(left, top + radius))
+                        .quadTo(
+                            com.drawit.core.geometry.Point(left + radius, top + radius),
+                            com.drawit.core.geometry.Point(left + radius, top),
+                        )
+                        .close()
 
                 CornerStyle.ROUND -> {
                     val control = radius * 0.55228475f
@@ -328,25 +374,25 @@ sealed class Shape {
                         .cubicTo(
                             com.drawit.core.geometry.Point(right - radius + control, top),
                             com.drawit.core.geometry.Point(right, top + radius - control),
-                            com.drawit.core.geometry.Point(right, top + radius)
+                            com.drawit.core.geometry.Point(right, top + radius),
                         )
                         .lineTo(com.drawit.core.geometry.Point(right, bottom - radius))
                         .cubicTo(
                             com.drawit.core.geometry.Point(right, bottom - radius + control),
                             com.drawit.core.geometry.Point(right - radius + control, bottom),
-                            com.drawit.core.geometry.Point(right - radius, bottom)
+                            com.drawit.core.geometry.Point(right - radius, bottom),
                         )
                         .lineTo(com.drawit.core.geometry.Point(left + radius, bottom))
                         .cubicTo(
                             com.drawit.core.geometry.Point(left + radius - control, bottom),
                             com.drawit.core.geometry.Point(left, bottom - radius + control),
-                            com.drawit.core.geometry.Point(left, bottom - radius)
+                            com.drawit.core.geometry.Point(left, bottom - radius),
                         )
                         .lineTo(com.drawit.core.geometry.Point(left, top + radius))
                         .cubicTo(
                             com.drawit.core.geometry.Point(left, top + radius - control),
                             com.drawit.core.geometry.Point(left + radius - control, top),
-                            com.drawit.core.geometry.Point(left + radius, top)
+                            com.drawit.core.geometry.Point(left + radius, top),
                         )
                         .close()
                 }
@@ -357,7 +403,7 @@ sealed class Shape {
             rect: Rect,
             startDegrees: Float,
             sweepDegrees: Float,
-            innerRatio: Float
+            innerRatio: Float,
         ): PathData {
             if (rect.isEmpty) return PathData.EMPTY
             val sweep = sweepDegrees.coerceIn(0.1f, 360f)
@@ -376,17 +422,17 @@ sealed class Shape {
             fun point(angle: Float, radiusRatio: Float = 1f): com.drawit.core.geometry.Point =
                 com.drawit.core.geometry.Point(
                     cx + cos(angle) * rx * radiusRatio,
-                    cy + sin(angle) * ry * radiusRatio
+                    cy + sin(angle) * ry * radiusRatio,
                 )
 
             fun appendArc(
                 source: PathData,
                 arcStart: Float,
                 arcSweep: Float,
-                radiusRatio: Float
+                radiusRatio: Float,
             ): PathData {
                 val segments = kotlin.math.ceil(
-                    kotlin.math.abs(arcSweep) / (PI.toFloat() / 2f)
+                    kotlin.math.abs(arcSweep) / (PI.toFloat() / 2f),
                 ).toInt().coerceAtLeast(1)
                 val delta = arcSweep / segments
                 var path = source
@@ -398,11 +444,11 @@ sealed class Shape {
                     val p3 = point(angle1, radiusRatio)
                     val cp1 = com.drawit.core.geometry.Point(
                         p0.x - sin(angle0) * rx * radiusRatio * k,
-                        p0.y + cos(angle0) * ry * radiusRatio * k
+                        p0.y + cos(angle0) * ry * radiusRatio * k,
                     )
                     val cp2 = com.drawit.core.geometry.Point(
                         p3.x + sin(angle1) * rx * radiusRatio * k,
-                        p3.y - cos(angle1) * ry * radiusRatio * k
+                        p3.y - cos(angle1) * ry * radiusRatio * k,
                     )
                     path = path.cubicTo(cp1, cp2, p3)
                     angle0 = angle1

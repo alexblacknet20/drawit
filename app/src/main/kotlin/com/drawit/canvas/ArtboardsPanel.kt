@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -21,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 
 /** Named, independently-sized document pages used as exportable artboards. */
@@ -44,13 +44,13 @@ fun ArtboardsPanel(editorState: EditorState) {
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Text("Artboards", style = MaterialTheme.typography.titleMedium)
         Text(
             "Each artboard has its own name and physical size. PNG/JPG export the active artboard; PDF can export one or all.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
         document.pages.forEachIndexed { index, page ->
@@ -64,36 +64,36 @@ fun ArtboardsPanel(editorState: EditorState) {
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                         },
-                        MaterialTheme.shapes.small
+                        MaterialTheme.shapes.small,
                     )
                     .clickable { editorState.setActiveArtboard(index) }
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {
                 Text(
                     "${index + 1}. ${page.name}",
-                    style = MaterialTheme.typography.labelLarge
+                    style = MaterialTheme.typography.labelLarge,
                 )
                 Text(
                     "${formatDimension(page.width)} × ${formatDimension(page.height)} mm",
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Button(
                 onClick = { editorState.addArtboard() },
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             ) {
                 Text("Add")
             }
             OutlinedButton(
                 onClick = { editorState.removeActiveArtboard() },
                 enabled = document.pages.size > 1,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             ) {
                 Text("Delete")
             }
@@ -105,11 +105,11 @@ fun ArtboardsPanel(editorState: EditorState) {
             onValueChange = { name = it },
             label = { Text("Name") },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             OutlinedTextField(
                 value = width,
@@ -117,7 +117,7 @@ fun ArtboardsPanel(editorState: EditorState) {
                 label = { Text("Width (mm)") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
             OutlinedTextField(
                 value = height,
@@ -125,7 +125,7 @@ fun ArtboardsPanel(editorState: EditorState) {
                 label = { Text("Height (mm)") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
             )
         }
         Button(
@@ -138,7 +138,7 @@ fun ArtboardsPanel(editorState: EditorState) {
             },
             enabled = width.replace(',', '.').toFloatOrNull()?.let { it >= 1f } == true &&
                 height.replace(',', '.').toFloatOrNull()?.let { it >= 1f } == true,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Apply name and size")
         }

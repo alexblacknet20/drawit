@@ -7,10 +7,10 @@ import com.drawit.core.document.Fill
 import com.drawit.core.document.TextShape
 import com.drawit.core.geometry.Matrix
 import com.drawit.core.geometry.Point
+import com.drawit.core.geometry.Rect
 import com.drawit.core.input.Tool
 import com.drawit.core.input.ToolContext
 import com.drawit.core.input.ToolEvent
-import com.drawit.core.geometry.Rect
 import com.drawit.text.TextEngine
 
 /**
@@ -27,7 +27,8 @@ class TextTool(
     private val textEngine: TextEngine,
     private val mode: TextShape.Kind,
     private val defaultFont: String = "bundled:inter",
-    private val defaultSize: Float = 8f // mm
+    // mm
+    private val defaultSize: Float = 8f,
 ) : Tool {
 
     override val id = if (mode == TextShape.Kind.ARTISTIC) "text" else "paragraph"
@@ -63,7 +64,10 @@ class TextTool(
             is ToolEvent.Move -> onMove(event)
             is ToolEvent.Up -> onUp(event)
             is ToolEvent.Key -> onKey(event)
-            is ToolEvent.Cancel -> { commitAndStopEditing(); true }
+            is ToolEvent.Cancel -> {
+                commitAndStopEditing()
+                true
+            }
             else -> false
         }
     }
@@ -136,7 +140,10 @@ class TextTool(
         val shape = state.document.findShape(shapeId) as? TextShape ?: return false
 
         when (event.keyCode) {
-            KeyEvent.KEYCODE_ESCAPE -> { commitAndStopEditing(); return true }
+            KeyEvent.KEYCODE_ESCAPE -> {
+                commitAndStopEditing()
+                return true
+            }
             KeyEvent.KEYCODE_DEL -> { // Backspace
                 val sel = selectionRange()
                 if (sel != null) {
@@ -148,8 +155,11 @@ class TextTool(
             }
             KeyEvent.KEYCODE_FORWARD_DEL -> {
                 val sel = selectionRange()
-                if (sel != null) replaceText(shape, sel.first, sel.second, "")
-                else if (caretIndex < shape.text.length) replaceText(shape, caretIndex, caretIndex + 1, "")
+                if (sel != null) {
+                    replaceText(shape, sel.first, sel.second, "")
+                } else if (caretIndex < shape.text.length) {
+                    replaceText(shape, caretIndex, caretIndex + 1, "")
+                }
                 return true
             }
             KeyEvent.KEYCODE_ENTER -> {
@@ -173,8 +183,11 @@ class TextTool(
                 val layout = textEngine.layout(shape)
                 val (x, top, bottom) = textEngine.caretFor(shape, layout, caretIndex)
                 val lineH = layout.lineHeight
-                val targetY = if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP)
-                    top - lineH / 2f - 0.1f else bottom + lineH / 2f + 0.1f
+                val targetY = if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    top - lineH / 2f - 0.1f
+                } else {
+                    bottom + lineH / 2f + 0.1f
+                }
                 if (event.modifiers.shift && selectionAnchor == null) selectionAnchor = caretIndex
                 if (!event.modifiers.shift) selectionAnchor = null
                 caretIndex = textEngine.indexForPoint(shape, layout, x, targetY)
@@ -244,7 +257,7 @@ class TextTool(
             textSize = defaultSize,
             frameWidth = frameWidth,
             transform = Matrix.translate(position.x, position.y),
-            fill = Fill.Solid(Color.BLACK)
+            fill = Fill.Solid(Color.BLACK),
         )
         val measured = textEngine.measure(shape)
         state.addShape(measured)
@@ -311,9 +324,11 @@ class TextTool(
         val current = frameDragCurrent
         if (start != null && current != null) {
             val tl = context.documentToScreen(
-                Point(minOf(start.x, current.x), minOf(start.y, current.y)))
+                Point(minOf(start.x, current.x), minOf(start.y, current.y)),
+            )
             val br = context.documentToScreen(
-                Point(maxOf(start.x, current.x), maxOf(start.y, current.y)))
+                Point(maxOf(start.x, current.x), maxOf(start.y, current.y)),
+            )
             val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                 color = android.graphics.Color.rgb(0, 120, 215)
                 style = android.graphics.Paint.Style.STROKE
@@ -342,19 +357,22 @@ class TextTool(
                 val highlightStart = maxOf(sel.first, lineStart)
                 val highlightEnd = minOf(sel.second, lineEnd)
                 if (highlightStart <= highlightEnd &&
-                    (highlightStart < highlightEnd ||
-                        (sel.second > lineEnd && highlightStart == lineEnd))) {
+                    (
+                        highlightStart < highlightEnd ||
+                            (sel.second > lineEnd && highlightStart == lineEnd)
+                        )
+                ) {
                     val (x1, top, _) = textEngine.caretFor(shape, layout, highlightStart)
                     val (x2, _, bottom) = textEngine.caretFor(shape, layout, highlightEnd)
                     val p1 = context.documentToScreen(
-                        shape.transform.transform(Point(x1, top))
+                        shape.transform.transform(Point(x1, top)),
                     )
                     val p2 = context.documentToScreen(
-                        shape.transform.transform(Point(x2, bottom))
+                        shape.transform.transform(Point(x2, bottom)),
                     )
                     val right = if (highlightStart == highlightEnd) {
                         context.documentToScreen(
-                            shape.transform.transform(Point(layout.bounds.right, bottom))
+                            shape.transform.transform(Point(layout.bounds.right, bottom)),
                         ).x
                     } else {
                         p2.x

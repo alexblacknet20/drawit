@@ -15,14 +15,14 @@ class TextEngine(private val fontManager: FontManager) {
         val text: String,
         val startIndex: Int,
         val width: Float,
-        val baselineY: Float
+        val baselineY: Float,
     )
 
     data class Layout(
         val lines: List<Line>,
         val bounds: Rect,
         val lineHeight: Float,
-        val paint: Paint
+        val paint: Paint,
     )
 
     fun paintFor(shape: TextShape): Paint =
@@ -30,7 +30,7 @@ class TextEngine(private val fontManager: FontManager) {
             typeface = fontManager.typefaceFor(
                 shape.fontFamily,
                 shape.fontWeight.value,
-                shape.italic
+                shape.italic,
             )
             textSize = shape.textSize
         }
@@ -57,7 +57,7 @@ class TextEngine(private val fontManager: FontManager) {
                         remaining,
                         true,
                         shape.frameWidth,
-                        null
+                        null,
                     ).coerceAtLeast(1)
 
                     // Prefer wrapping at whitespace. Long words still make
@@ -73,7 +73,7 @@ class TextEngine(private val fontManager: FontManager) {
                         text = displayed,
                         startIndex = paragraphStart + offset,
                         width = paint.measureText(displayed),
-                        baselineY = baseline
+                        baselineY = baseline,
                     )
                     offset += consumed
                     while (offset < paragraph.length && paragraph[offset].isWhitespace()) offset++
@@ -84,7 +84,7 @@ class TextEngine(private val fontManager: FontManager) {
                     text = paragraph,
                     startIndex = paragraphStart,
                     width = paint.measureText(paragraph),
-                    baselineY = baseline
+                    baselineY = baseline,
                 )
                 baseline += lineHeight
             }

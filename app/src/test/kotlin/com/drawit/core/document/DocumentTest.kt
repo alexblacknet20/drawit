@@ -2,12 +2,10 @@ package com.drawit.core.document
 
 import com.drawit.core.color.Color
 import com.drawit.core.geometry.Matrix
-import com.drawit.core.geometry.Point
 import com.drawit.core.geometry.Rect
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DocumentTest {
